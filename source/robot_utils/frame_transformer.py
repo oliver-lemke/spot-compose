@@ -14,8 +14,14 @@ from __future__ import annotations
 
 import numpy as np
 
+from bosdyn.api import trajectory_pb2
 from bosdyn.client import math_helpers
-from bosdyn.client.frame_helpers import BODY_FRAME_NAME, ODOM_FRAME_NAME, get_a_tform_b
+from bosdyn.client.frame_helpers import (
+    BODY_FRAME_NAME,
+    VISION_FRAME_NAME,
+    get_a_tform_b,
+)
+from utils.coordinates import build_trajectory_point
 
 GRAPH_SEED_FRAME_NAME = "seed_graph"
 VISUAL_SEED_FRAME_NAME = "seed_visual"
@@ -44,7 +50,7 @@ class FrameTransformer:
         self.robot_state_client = robot_state_client
         self.world_object_client = world_object_client
         self.graph_nav_client = graph_nav_client
-        self.frames_tform_odom = {}
+        self.frames_tform_vision = {}
 
         frame_transformer = FrameTransformerSingleton()
         frame_transformer.set_instance(self)
@@ -68,6 +74,42 @@ class FrameTransformer:
             end_tform_start = end_tform_start.get_closest_se2_transform()
         end_pose = end_tform_start * start_pose
         return end_pose
+
+    def transform_wrench(
+        self,
+        start_frame: str,
+        end_frame: str,
+        start_wrench: trajectory_pb2.WrenchTrajectoryPoint,
+    ):
+        """
+        Basic transformation of a pose between two frames. Equivalent to end_tform_start
+        :param start_frame: frame in which original pose is specified
+        :param end_frame: frame to transform to
+        :param start_wrench: wrench to transform (in start_frame)
+        :return: wrench in end_frame
+        """
+        start_tform_end = self._get_tform(start_frame, end_frame)
+        end_tform_start = start_tform_end.inverse()
+
+        force_in_start = start_wrench.wrench.force
+        torque_in_start = start_wrench.wrench.torque
+        t = start_wrench.time_since_reference.seconds
+        force_in_end = end_tform_start.rotation.transform_point(
+            force_in_start.x, force_in_start.y, force_in_start.z
+        )
+        torque_in_end = end_tform_start.rotation.transform_point(
+            torque_in_start.x, torque_in_start.y, torque_in_start.z
+        )
+
+        return build_trajectory_point(
+            t,
+            force_in_end[0],
+            force_in_end[1],
+            force_in_end[2],
+            torque_in_end[0],
+            torque_in_end[1],
+            torque_in_end[2],
+        )
 
     def transform_matrix(self, start_frame: str, end_frame: str) -> np.ndarray:
         """
@@ -96,9 +138,9 @@ class FrameTransformer:
             )
             return math_helpers.SE3Pose.from_proto(seed_tform_body)
 
-        if frame_name in self.frames_tform_odom:
-            odom_tform_body = self._get_frame_tform_body(ODOM_FRAME_NAME)
-            return self.frames_tform_odom[frame_name] * odom_tform_body
+        if frame_name in self.frames_tform_vision:
+            odom_tform_body = self._get_frame_tform_body(VISION_FRAME_NAME)
+            return self.frames_tform_vision[frame_name] * odom_tform_body
 
         # then we want to check whether the frame is in the basic kinematics tree
         # if yes, we can simply return that
@@ -124,7 +166,7 @@ class FrameTransformer:
             f"Frame {frame_name} could not be found as transformation!\n {kinematics_transforms_snapshot=}"
         )
 
-    def add_frame_tform_odom(
+    def add_frame_tform_vision(
         self, name: str, tform_matrix: np.ndarray, overwrite: bool = False
     ):
         """
@@ -133,9 +175,9 @@ class FrameTransformer:
         :param tform_matrix: frame_tform_odom
         :param overwrite: assuming a frame with name "name" already exists, overwrite it?
         """
-        if name in self.frames_tform_odom and not overwrite:
+        if name in self.frames_tform_vision and not overwrite:
             raise ValueError(f"Name {name} already in frame transformer!")
-        self.frames_tform_odom[name] = math_helpers.SE3Pose.from_matrix(tform_matrix)
+        self.frames_tform_vision[name] = math_helpers.SE3Pose.from_matrix(tform_matrix)
 
     def _get_tform(self, start_frame: str, end_frame: str) -> math_helpers.SE3Pose:
         """

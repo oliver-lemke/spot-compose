@@ -15,9 +15,11 @@ from typing import Optional
 
 import numpy as np
 
+from bosdyn.api import geometry_pb2, trajectory_pb2
 from bosdyn.api.geometry_pb2 import FrameTreeSnapshot
 from bosdyn.client import math_helpers
 from bosdyn.client.frame_helpers import get_a_tform_b
+from bosdyn.util import seconds_to_duration
 from scipy.spatial.transform import Rotation
 
 
@@ -718,3 +720,31 @@ def get_circle_points(
     if return_cartesian:
         vectors = _polar_to_cartesian(vectors)
     return vectors
+
+
+def build_trajectory_point(
+    seconds: float,
+    force_x: float = 0.0,
+    force_y: float = 0.0,
+    force_z: float = 0.0,
+    torque_x: float = 0.0,
+    torque_y: float = 0.0,
+    torque_z: float = 0.0,
+) -> trajectory_pb2.WrenchTrajectoryPoint:
+    """
+    Build a single trajectory point for a Wrench Trajectory
+    :param seconds: seconds from start when this force should be reached
+    :param force_x: force in x direction
+    :param force_y: force in y direction
+    :param force_z: force in z direction
+    :param torque_x: torque around x-axis
+    :param torque_y: torque around y-axis
+    :param torque_z: torque around z-axis
+    :return: trajectory_pb2.WrenchTrajectoryPoint
+    """
+    force = geometry_pb2.Vec3(x=force_x, y=force_y, z=force_z)
+    torque = geometry_pb2.Vec3(x=torque_x, y=torque_y, z=torque_z)
+
+    wrench = geometry_pb2.Wrench(force=force, torque=torque)
+    t = seconds_to_duration(seconds)
+    return trajectory_pb2.WrenchTrajectoryPoint(wrench=wrench, time_since_reference=t)

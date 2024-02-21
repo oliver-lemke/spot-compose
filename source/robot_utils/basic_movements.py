@@ -280,17 +280,3 @@ def carry():
     """
     carry_cmd = RobotCommandBuilder.arm_carry_command()
     robot_command_client.robot_command(carry_cmd)
-
-
-def high_carry():
-    """
-    Put arm into custom high carry position.
-    """
-    pose = math_helpers.SE3Pose(x=0.6, y=0, z=0.6, rot=math_helpers.Quat())
-    pose = Pose3D.from_bosdyn_pose(pose)
-    move_arm(
-        pose,
-        frame_name=BODY_FRAME_NAME,
-        body_assist=False,
-        keep_static_after_moving=False,
-    )
