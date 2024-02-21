@@ -1,0 +1,59 @@
+# This file acts as the base configuration file for the project.
+# See configs/template.yaml for an example how to create a deviating configuration file
+# By default the config/user.yaml configuration file is used.
+
+# used for logging
+project_name: "template"
+
+# used for naming purposes
+note: "note"
+
+robot_parameters:
+  config_verbose: True
+
+# device on which to train
+device: "cuda"
+
+pre_scanned_graphs:
+  base_fiducial_id: 50
+  graph_frame_name_prefix: "filtered_fiducial_"
+  floor: -0.1
+  # low_res: "24-02-08"
+  # high_res: "24-02-08"
+  # masked: "20240208_114206_scene"
+  low_res: "24-02-08"
+  high_res: "24-02-08b"
+  masked: "20240208_141606_scene"
+
+# paths are relative from project_root_directory
+subpaths:
+  cache: "cache/"
+  logs: "logs/"
+  output: "output/"
+  resume_from: "path/to/weights"
+  data: "data/"
+  graphs: "data/graphs/"
+  prescans: "data/prescans"
+  autowalks: "data/autowalk"
+  point_clouds: "data/point_clouds"
+  aligned_point_clouds: "data/aligned_point_clouds"
+  masks: "data/masked"
+  # environment
+  environment: ".environment.yaml"
+  spot_description: "spot_description"
+  tmp: "data/tmp"
+  openmask_features: "data/openmask_features"
+
+servers:
+  graspnet:
+    ip: "192.168.1.244"
+    port: 5000
+    route: "graspnet/predict"
+  openmask:
+    ip: "192.168.1.244"
+    port: 5001
+    route: "openmask/save_and_predict"
+  vitpose:
+    ip: "192.168.1.244"
+    port: 5002
+    route: "vitpose/predict"

@@ -1,0 +1,8 @@
+name: Lint with PyLint
+on: [push, pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: fylein/python-pylint-github-action@v4

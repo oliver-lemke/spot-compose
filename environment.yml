@@ -1,0 +1,27 @@
+name: spot-mask-3d
+channels:
+    - defaults
+    - open3d-admin
+dependencies:
+    - openai==0.27.4
+    - numpy==1.24.3
+    - tqdm==4.65.0
+    - pandas==1.5.3
+    - black==23.3.0
+    - isort==5.9.3
+    - pylint==2.16.2
+    - rtree==1.0.1
+    - pyproj==3.4.1
+    - pip==23.2.1
+    - open3d==0.17.0
+    - pip:
+        - wandb==0.15.8
+        - opencv-python==4.8.0.74
+        - bosdyn-api==3.3.0
+        - bosdyn-choreography-client==3.3.0
+        - bosdyn-choreography-protos==3.3.0
+        - bosdyn-client==3.3.0
+        - bosdyn-core==3.3.0
+        - bosdyn-mission==3.3.0
+        - pyoints==0.2.0a3
+        - addict==2.4.0
