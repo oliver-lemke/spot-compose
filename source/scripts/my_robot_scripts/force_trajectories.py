@@ -37,14 +37,14 @@ class _ForceTrajectory(ControlFunction):
         **kwargs,
     ) -> str:
         frame_transformer.set_instance(FrameTransformer())
-        pose = Pose2D((1, 0))
+        pose = Pose2D((0, 0))
         pose.set_rot_from_angle(-90, degrees=True)
         move_body(pose, VISION_FRAME_NAME)
 
         t0 = 0
-        t1 = 1
+        t1 = 5
         traj_point0 = build_trajectory_point(t0)
-        traj_point1 = build_trajectory_point(t1, torque_x=2)
+        traj_point1 = build_trajectory_point(t1, torque_x=5)
         traj_points = [traj_point0, traj_point1]
 
         move_arm_trajectory(

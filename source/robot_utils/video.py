@@ -510,7 +510,7 @@ def localize_from_images(config: Config, vis_block: bool = False) -> str:
     )
     ground_tform_odom = ground_tform_body @ body_tform_odom
 
-    frame_transformer.add_frame_tform_odom(frame_name, ground_tform_odom)
+    frame_transformer.add_frame_tform_vision(frame_name, ground_tform_odom)
 
     set_gripper(False)
     return frame_name
@@ -565,7 +565,7 @@ def relocalize(
     )
     ground_tform_odom = ground_tform_body @ body_tform_odom
 
-    frame_transformer.add_frame_tform_odom(
+    frame_transformer.add_frame_tform_vision(
         frame_name, ground_tform_odom, overwrite=True
     )
 

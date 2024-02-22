@@ -205,7 +205,7 @@ def take_control_with_function(
 
         if return_to_start and return_values is not None:
             frame_name = return_values
-            return_pose = Pose3D((2.0, 0, 0))
+            return_pose = Pose3D((1.5, 0, 0))
             return_pose.set_rot_from_rpy((0, 0, 180), degrees=True)
             move_body(
                 pose=return_pose.to_dimension(2),

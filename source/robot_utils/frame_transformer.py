@@ -18,6 +18,7 @@ from bosdyn.api import trajectory_pb2
 from bosdyn.client import math_helpers
 from bosdyn.client.frame_helpers import (
     BODY_FRAME_NAME,
+    ODOM_FRAME_NAME,
     VISION_FRAME_NAME,
     get_a_tform_b,
 )
@@ -68,8 +69,7 @@ class FrameTransformer:
         :param start_pose: pose to transform (in start_frame)
         :return: pose in end_frame
         """
-        start_tform_end = self._get_tform(start_frame, end_frame)
-        end_tform_start = start_tform_end.inverse()
+        end_tform_start = self.end_tform_start(start_frame, end_frame)
         if isinstance(start_pose, math_helpers.SE2Pose):
             end_tform_start = end_tform_start.get_closest_se2_transform()
         end_pose = end_tform_start * start_pose
@@ -88,8 +88,7 @@ class FrameTransformer:
         :param start_wrench: wrench to transform (in start_frame)
         :return: wrench in end_frame
         """
-        start_tform_end = self._get_tform(start_frame, end_frame)
-        end_tform_start = start_tform_end.inverse()
+        end_tform_start = self.end_tform_start(start_frame, end_frame)
 
         force_in_start = start_wrench.wrench.force
         torque_in_start = start_wrench.wrench.torque
@@ -139,7 +138,7 @@ class FrameTransformer:
             return math_helpers.SE3Pose.from_proto(seed_tform_body)
 
         if frame_name in self.frames_tform_vision:
-            odom_tform_body = self._get_frame_tform_body(VISION_FRAME_NAME)
+            odom_tform_body = self._get_frame_tform_body(ODOM_FRAME_NAME)
             return self.frames_tform_vision[frame_name] * odom_tform_body
 
         # then we want to check whether the frame is in the basic kinematics tree
@@ -179,7 +178,7 @@ class FrameTransformer:
             raise ValueError(f"Name {name} already in frame transformer!")
         self.frames_tform_vision[name] = math_helpers.SE3Pose.from_matrix(tform_matrix)
 
-    def _get_tform(self, start_frame: str, end_frame: str) -> math_helpers.SE3Pose:
+    def end_tform_start(self, start_frame: str, end_frame: str) -> math_helpers.SE3Pose:
         """
         Calculates transformation from start_frame to end_frame, checking kinematics, seed, and world objects trees.
         """
@@ -188,7 +187,8 @@ class FrameTransformer:
         start_tform_body = self._get_frame_tform_body(start_frame)
         body_tform_end = self._get_frame_tform_body(end_frame).inverse()
         start_tform_end = start_tform_body * body_tform_end
-        return start_tform_end
+        end_tform_start = start_tform_end.inverse()
+        return end_tform_start
 
     def get_current_body_position_in_frame(
         self, end_frame: str
