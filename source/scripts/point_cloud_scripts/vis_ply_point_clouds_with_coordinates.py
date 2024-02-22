@@ -29,14 +29,8 @@ def rotate_e(rpy: (float, float, float)) -> (np.ndarray, np.ndarray, np.ndarray)
 
 
 def main():
-    POINT1 = (0.29, -0.48, 0.8)
-    RPY1 = (0, 0, 180)
-    KNOB_COORDINATES_TOP = (0.34, -1.58, 0.52)
-    KNOB_COORDINATES_BOT = (0.34, -1.58, 0.32)
-    BUTTON_COORDINATES = (0.64, -1.55, 0.5)
-    RPYPUSH = (0, 90, 120)
-    STAND_COORDINATES = (0.45, -0.93, 1.05)
-    RPYSEARCH = (0, 0, 180)
+    KNOB_COORDINATES_TOP = (0.33, -1.68, 0.52)
+    RPY_KNOB = (0, 0, 0)
     option = 0
 
     config = recursive_config.Config()
@@ -62,20 +56,10 @@ def main():
     cloud = load_points(path)
     ground = np.asarray((0, 0, 0))
     cloud = add_coordinate_system(cloud, (0, 255, 0), ground, size=2)
-    es1 = rotate_e(RPY1)
-    cloud = add_coordinate_system(cloud, (255, 0, 255), POINT1, *es1, size=2)
-    es2 = rotate_e(RPYSEARCH)
-    es3 = rotate_e(RPYPUSH)
+    es_knob = rotate_e(RPY_KNOB)
     cloud = add_coordinate_system(
-        cloud, (255, 0, 255), KNOB_COORDINATES_TOP, *es2, size=2
+        cloud, (255, 0, 255), KNOB_COORDINATES_TOP, *es_knob, size=2
     )
-    cloud = add_coordinate_system(
-        cloud, (255, 0, 255), KNOB_COORDINATES_BOT, *es2, size=2
-    )
-    cloud = add_coordinate_system(
-        cloud, (255, 0, 255), BUTTON_COORDINATES, *es3, size=2
-    )
-    cloud = add_coordinate_system(cloud, (255, 0, 255), STAND_COORDINATES, *es2, size=2)
 
     draw_cloud(cloud)
 

@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import time
 
+from bosdyn.api import geometry_pb2, robot_command_pb2
 from bosdyn.api.basic_command_pb2 import RobotCommandFeedbackStatus
+from bosdyn.api.robot_command_pb2 import RobotCommand
 from bosdyn.api.spot import robot_command_pb2 as spot_command_pb2
-from bosdyn.client import math_helpers
 from bosdyn.client.frame_helpers import BODY_FRAME_NAME, VISION_FRAME_NAME
 from bosdyn.client.robot_command import RobotCommandBuilder, block_until_arm_arrives
+from bosdyn.util import seconds_to_duration
 from robot_utils.frame_transformer import FrameTransformerSingleton
 from utils.coordinates import Pose2D, Pose3D, pose_distanced
 from utils.singletons import (
@@ -173,6 +175,83 @@ def set_gripper(
     time.sleep(1)
 
 
+def _normal_arm_move_command(
+    pose: Pose3D, frame_name: str, root_frame: str, timeout: int
+) -> RobotCommand:
+    """
+    Creates a normal arm movement command.
+    """
+    se3_pose = pose.as_pose()
+    arm_command = RobotCommandBuilder.arm_pose_command(
+        se3_pose.x,
+        se3_pose.y,
+        se3_pose.z,
+        se3_pose.rot.w,
+        se3_pose.rot.x,
+        se3_pose.rot.y,
+        se3_pose.rot.z,
+        root_frame,
+        timeout,
+    )
+    root_tform_task = frame_transformer.end_tform_start(frame_name, root_frame)
+    arm_command.synchronized_command.arm_command.arm_cartesian_command.root_tform_task.CopyFrom(
+        root_tform_task.to_proto()
+    )
+    return arm_command
+
+
+def _impedance_arm_move_command(
+    pose: Pose3D,
+    stiffness_diag: list[int] | None,
+    damping_diag: list[float] | None,
+    forces: list[float] | None,
+    frame_name: str,
+    root_frame: str,
+    duration: float,
+) -> RobotCommand:
+    """
+    Creates an impedance arm command with the specified stiffness and damping.
+    """
+
+    robot_cmd = robot_command_pb2.RobotCommand()
+    impedance_cmd = robot_cmd.synchronized_command.arm_command.arm_impedance_command
+
+    # Set up our root frame, task frame
+    impedance_cmd.root_frame_name = root_frame
+    root_tform_task = frame_transformer.end_tform_start(frame_name, root_frame)
+    impedance_cmd.root_tform_task.CopyFrom(root_tform_task.to_proto())
+
+    # Set up forces at tool
+    if forces:
+        assert len(forces) == 6
+        impedance_cmd.feed_forward_wrench_at_tool_in_desired_tool.force.x = forces[0]
+        impedance_cmd.feed_forward_wrench_at_tool_in_desired_tool.force.y = forces[1]
+        impedance_cmd.feed_forward_wrench_at_tool_in_desired_tool.force.z = forces[2]
+        impedance_cmd.feed_forward_wrench_at_tool_in_desired_tool.torque.x = forces[3]
+        impedance_cmd.feed_forward_wrench_at_tool_in_desired_tool.torque.y = forces[4]
+        impedance_cmd.feed_forward_wrench_at_tool_in_desired_tool.torque.z = forces[5]
+
+    # Set up stiffness and damping matrices
+    if stiffness_diag:
+        assert len(stiffness_diag) == 6
+        impedance_cmd.diagonal_stiffness_matrix.CopyFrom(
+            geometry_pb2.Vector(values=stiffness_diag)
+        )
+
+    if damping_diag:
+        assert len(damping_diag) == 6
+        impedance_cmd.diagonal_damping_matrix.CopyFrom(
+            geometry_pb2.Vector(values=damping_diag)
+        )
+
+    # Set up the target pose as the desired tool frame
+    traj = impedance_cmd.task_tform_desired_tool
+    pt1 = traj.points.add()
+    pt1.time_since_reference.CopyFrom(seconds_to_duration(duration))
+    pt1.pose.CopyFrom(pose.as_pose().to_proto())
+    return robot_cmd
+
+
 def move_arm(
     pose: Pose3D,
     frame_name: str,
@@ -182,6 +261,9 @@ def move_arm(
     stow: bool = False,
     body_assist: bool = False,
     keep_static_after_moving: bool = False,
+    stiffness_diag: list[int] | None = None,
+    damping_diag: list[float] | None = None,
+    forces: list[float] | None = None,
 ) -> bool:
     """
     Moves the arm to a specified location relative to the body frame
@@ -193,11 +275,11 @@ def move_arm(
     :param stow: whether to stow the arm after use
     :param body_assist: whether to use body assist when grabbing
     :param keep_static_after_moving: if true, the robot will try to keep the arm at
-    static position when moving,
-    otherwise the arm will move with the robot
+    static position when moving, otherwise the arm will move with the robot
+    :param stiffness_diag: diagonal stiffness matrix for impedance
+    :param damping_diag: diagonal damping matrix for impedance
+    :param forces: forces to apply to tool relative to the task frame
     """
-    pose = pose.as_pose()
-
     if unstow:
         unstow_arm(body_assist=body_assist)
 
@@ -205,35 +287,36 @@ def move_arm(
         # For some reason body_assist needs the ODOM_FRAME_NAME
         if not keep_static_after_moving:
             robot.logger.warn("Arm kept static due to required body assist.")
-        intermediate_frame = VISION_FRAME_NAME
+        root_frame = VISION_FRAME_NAME
     else:
-        intermediate_frame = BODY_FRAME_NAME
+        root_frame = BODY_FRAME_NAME
 
-    pose_t = frame_transformer.transform(frame_name, intermediate_frame, pose)
+    # start with stand command, which will serve as the basis of building
+    body_control = spot_command_pb2.BodyControlParams(
+        body_assist_for_manipulation=spot_command_pb2.BodyControlParams.BodyAssistForManipulation(
+            enable_hip_height_assist=body_assist, enable_body_yaw_assist=body_assist
+        )
+    )
+    stand_command = RobotCommandBuilder.synchro_stand_command(
+        params=spot_command_pb2.MobilityParams(body_control=body_control)
+    )
 
     # build the actual command
-    # includes all coordinates, the reference frame, and the move time
-    arm_command = RobotCommandBuilder.arm_pose_command(
-        pose_t.x,
-        pose_t.y,
-        pose_t.z,
-        pose_t.rot.w,
-        pose_t.rot.x,
-        pose_t.rot.y,
-        pose_t.rot.z,
-        intermediate_frame,
-        timeout,
-    )
+    if stiffness_diag is None and damping_diag is None:
+        arm_command = _normal_arm_move_command(pose, frame_name, root_frame, timeout)
+    else:
+        arm_command = _impedance_arm_move_command(
+            pose, stiffness_diag, damping_diag, forces, frame_name, root_frame, timeout
+        )
 
     # Make the open gripper RobotCommand
     if gripper_open is not None:
         set_gripper(gripper_open)
 
-    # Combine the arm and gripper commands into one synchronous RobotCommand
-    command = RobotCommandBuilder.build_synchro_command(arm_command)
+    robot_cmd = RobotCommandBuilder.build_synchro_command(stand_command, arm_command)
 
     # Send the request
-    cmd_id = robot_command_client.robot_command(command)
+    cmd_id = robot_command_client.robot_command(robot_cmd)
 
     # Wait until the arm arrives at the goal.
     success = block_until_arm_arrives(robot_command_client, cmd_id)
@@ -248,6 +331,7 @@ def move_arm_distanced(
     pose: Pose3D,
     distance: float,
     frame_name: str,
+    **kwargs,
 ) -> Pose3D:
     """
     Move the arm to a specified pose, but offset in the viewing direction.
@@ -256,13 +340,10 @@ def move_arm_distanced(
     :param pose: theoretical pose (if distance = 0)
     :param distance: distance in m that the actual final pose is offset from the pose by
     :param frame_name: frame relative to which the position is specified
+    :param kwargs: kwargs for the move_arm function
     """
     result_pos = pose_distanced(pose, distance)
-    move_arm(
-        pose=result_pos,
-        frame_name=frame_name,
-        body_assist=True,
-    )
+    move_arm(pose=result_pos, frame_name=frame_name, body_assist=True, **kwargs)
     return result_pos
 
 
@@ -280,17 +361,3 @@ def carry():
     """
     carry_cmd = RobotCommandBuilder.arm_carry_command()
     robot_command_client.robot_command(carry_cmd)
-
-
-def high_carry():
-    """
-    Put arm into custom high carry position.
-    """
-    pose = math_helpers.SE3Pose(x=0.6, y=0, z=0.6, rot=math_helpers.Quat())
-    pose = Pose3D.from_bosdyn_pose(pose)
-    move_arm(
-        pose,
-        frame_name=BODY_FRAME_NAME,
-        body_assist=False,
-        keep_static_after_moving=False,
-    )
