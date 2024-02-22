@@ -178,6 +178,9 @@ def set_gripper(
 def _normal_arm_move_command(
     pose: Pose3D, frame_name: str, root_frame: str, timeout: int
 ) -> RobotCommand:
+    """
+    Creates a normal arm movement command.
+    """
     se3_pose = pose.as_pose()
     arm_command = RobotCommandBuilder.arm_pose_command(
         se3_pose.x,
@@ -206,16 +209,19 @@ def _impedance_arm_move_command(
     root_frame: str,
     duration: float,
 ) -> RobotCommand:
+    """
+    Creates an impedance arm command with the specified stiffness and damping.
+    """
 
     robot_cmd = robot_command_pb2.RobotCommand()
     impedance_cmd = robot_cmd.synchronized_command.arm_command.arm_impedance_command
 
-    # Set up our root frame, task frame, and tool frame.
+    # Set up our root frame, task frame
     impedance_cmd.root_frame_name = root_frame
     root_tform_task = frame_transformer.end_tform_start(frame_name, root_frame)
     impedance_cmd.root_tform_task.CopyFrom(root_tform_task.to_proto())
 
-    # Set up downward force.
+    # Set up forces at tool
     if forces:
         assert len(forces) == 6
         impedance_cmd.feed_forward_wrench_at_tool_in_desired_tool.force.x = forces[0]
@@ -225,9 +231,7 @@ def _impedance_arm_move_command(
         impedance_cmd.feed_forward_wrench_at_tool_in_desired_tool.torque.y = forces[4]
         impedance_cmd.feed_forward_wrench_at_tool_in_desired_tool.torque.z = forces[5]
 
-    # Set up stiffness and damping matrices. Note that we've set the stiffness in the z-axis
-    # to 0 since we're commanding a constant downward force, regardless of where the tool
-    # is in z relative to our `desired_tool` frame.
+    # Set up stiffness and damping matrices
     if stiffness_diag:
         assert len(stiffness_diag) == 6
         impedance_cmd.diagonal_stiffness_matrix.CopyFrom(
@@ -240,8 +244,7 @@ def _impedance_arm_move_command(
             geometry_pb2.Vector(values=damping_diag)
         )
 
-    # Set up our `desired_tool` trajectory. This is where we want the tool to be with respect to
-    # the task frame. The stiffness we set will drag the tool towards `desired_tool`.
+    # Set up the target pose as the desired tool frame
     traj = impedance_cmd.task_tform_desired_tool
     pt1 = traj.points.add()
     pt1.time_since_reference.CopyFrom(seconds_to_duration(duration))
@@ -272,10 +275,10 @@ def move_arm(
     :param stow: whether to stow the arm after use
     :param body_assist: whether to use body assist when grabbing
     :param keep_static_after_moving: if true, the robot will try to keep the arm at
-    static position when moving,
+    static position when moving, otherwise the arm will move with the robot
     :param stiffness_diag: diagonal stiffness matrix for impedance
     :param damping_diag: diagonal damping matrix for impedance
-    otherwise the arm will move with the robot
+    :param forces: forces to apply to tool relative to the task frame
     """
     if unstow:
         unstow_arm(body_assist=body_assist)
