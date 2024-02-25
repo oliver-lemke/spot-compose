@@ -17,6 +17,10 @@ import open3d as o3d
 import requests
 
 
+class UnsupportedFileFormatException(Exception):
+    pass
+
+
 def _get_content(response: requests.Response, save_path: bytes | str) -> dict:
     """
     Given a requests response, extract the files from the associated zip file
@@ -39,12 +43,17 @@ def _get_content(response: requests.Response, save_path: bytes | str) -> dict:
                 content = np.load(file)
             elif extension == ".ply":
                 content = o3d.io.read_triangle_mesh(file)
+            elif extension == ".json":
+                with open(file, "r") as f:
+                    content = json.load(f)
+            else:
+                raise UnsupportedFileFormatException(extension)
             contents[name] = content
     return contents
 
 
 def save_files(
-    data: list[(str, Callable[[str, Any], Any], Any)], save_path: str
+        data: list[(str, Callable[[str, Any], Any], Any)], save_path: str
 ) -> list[str]:
     """
     Save files and return paths so that they can be sent via requests
@@ -64,11 +73,11 @@ def save_files(
 
 
 def send_request(
-    server_address: str,
-    paths_dict: dict[str, str],
-    params: dict,
-    timeout: int,
-    save_path: str,
+        server_address: str,
+        paths_dict: dict[str, str],
+        params: dict,
+        timeout: int,
+        save_path: str,
 ) -> dict[str, Any]:
     """
     Send a request with files to a docker server.
