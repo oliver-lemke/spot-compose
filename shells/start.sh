@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /Users/oliverlemke/Documents/University/2023-24/ext-projects/spot-mask-3d
+cd /Users/oliverlemke/Documents/University/2024/ext-projects/spot-drawers
 source venv/bin/activate
 cd source
 p() {
