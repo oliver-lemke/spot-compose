@@ -9,12 +9,14 @@ import numpy as np
 
 import cv2
 from matplotlib import pyplot as plt
+from scipy.optimize import linear_sum_assignment
 from utils.docker_communication import save_files, send_request
 from utils.files import prep_tmp_path
 from utils.recursive_config import Config
 
 BBox = namedtuple("BBox", ["xmin", "ymin", "xmax", "ymax"])
 Detection = namedtuple("Detection", ["name", "conf", "bbox"])
+Match = namedtuple("Match", ["drawer", "handle"])
 
 COLORS = {
     "door": (0.651, 0.243, 0.957),
@@ -77,12 +79,20 @@ def predict(
     if vis_block:
         draw_boxes(image, detections)
 
-    detections = [Detection(det[0], det[1], BBox(*det[2])) for det in detections]
+    def convert_format(detection: list[str, float, list[float]]) -> Detection:
+        (x, y, w, h) = detection[2]
+        xmin, xmax = x - w / 2, x + w / 2
+        ymin, ymax = y - h / 2, y + h / 2
+        return Detection(detection[0], detection[1], BBox(xmin, ymin, xmax, ymax))
+
+    detections = [convert_format(det) for det in detections]
     return detections
 
 
-def drawer_handle_tuples(detections: list[Detection]) -> list[tuple[BBox | None]]:
-    def matching_cost(drawer: Detection, handle: Detection) -> float:
+def drawer_handle_matches(detections: list[Detection]) -> list[Match]:
+    def matching_score(
+        drawer: Detection, handle: Detection, ioa_weight: float = 10.0
+    ) -> float:
         _, drawer_conf, drawer_bbox = drawer
         *_, handle_bbox = handle
 
@@ -100,20 +110,39 @@ def drawer_handle_tuples(detections: list[Detection]) -> list[tuple[BBox | None]
         overlap_width = max(0, overlap_right - overlap_left)
         overlap_height = max(0, overlap_bottom - overlap_top)
 
-        overlap_area = overlap_width * overlap_height
+        intersection_area = overlap_width * overlap_height
         handle_area = (handle_right - handle_left) * (handle_bottom - handle_top)
-        return overlap_area / handle_area
+
+        ioa = intersection_area / handle_area
+        if ioa == 0:
+            return ioa
+        else:
+            return ioa_weight * ioa + drawer_conf
 
     drawer_detections = [det for det in detections if det.name == "cabinet door"]
     handle_detections = [det for det in detections if det.name == "handle"]
 
-    matching_costs = np.zeros((len(drawer_detections), len(handle_detections)))
+    matching_scores = np.zeros((len(drawer_detections), len(handle_detections)))
     for didx, drawer_detection in enumerate(drawer_detections):
         for hidx, handle_detection in enumerate(handle_detections):
-            matching_costs[didx, hidx] = matching_cost(
+            matching_scores[didx, hidx] = matching_score(
                 drawer_detection, handle_detection
             )
-    print(matching_costs)
+    drawer_idxs, handle_idxs = linear_sum_assignment(-matching_scores)
+    matches = [
+        Match(drawer_detections[drawer_idx], handle_detections[handle_idx])
+        for (drawer_idx, handle_idx) in zip(drawer_idxs, handle_idxs)
+    ]
+
+    for drawer_idx, drawer_detection in enumerate(drawer_detections):
+        if drawer_idx not in drawer_idxs:
+            matches.append(Match(drawer_detection, None))
+
+    for handle_idx, handle_detection in enumerate(handle_detections):
+        if handle_idx not in handle_idxs:
+            matches.append(Match(None, handle_detection))
+
+    print(matches)
 
 
 ########################################################################################

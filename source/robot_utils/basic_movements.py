@@ -370,6 +370,7 @@ def roll_over():
     Roll the robot into battery swap position.
     """
     command = RobotCommandBuilder.battery_change_pose_command()
+    command = RobotCommandBuilder.build_synchro_command(command)
     robot_command_client.robot_command(command)
 
 
