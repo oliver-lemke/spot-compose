@@ -7,8 +7,8 @@ from robot_utils.basic_movements import carry, gaze, move_body, stow_arm
 from robot_utils.frame_transformer import FrameTransformerSingleton
 from robot_utils.video import get_camera_rgbd, localize_from_images
 from utils.coordinates import Pose2D, Pose3D
-from utils.darknet_interface import drawer_handle_matches
-from utils.darknet_interface import predict as drawer_predict
+from utils.drawer_detection import drawer_handle_matches
+from utils.drawer_detection import predict as drawer_predict
 from utils.recursive_config import Config
 from utils.singletons import (
     GraphNavClientSingleton,

@@ -7,7 +7,7 @@ import cv2
 import open3d as o3d
 from scipy.spatial.transform import Rotation
 from sklearn.linear_model import LinearRegression, RANSACRegressor
-from utils.darknet_interface import predict as drawer_predict
+from utils.drawer_detection import predict as drawer_predict
 from utils.recursive_config import Config
 
 
