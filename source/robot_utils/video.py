@@ -599,18 +599,18 @@ def point_cloud_from_camera_captures(
 def frame_coordinate_from_depth_image(
     depth_image: np.ndarray,
     depth_image_response: ImageResponse,
-    pixel_coordinates: np.ndarray,
+    pixel_coordinatess: np.ndarray,
     frame_name: str,
 ) -> np.ndarray:
     """
     Compute a 3D coordinate from a depth image and pixel coordinate.
     :param depth_image: depth image, shape (H, W, 1)
     :param depth_image_response: associated ImageResponse
-    :param pixel_coordinates: coordinates of the pixel to get the 3D coordinate of (format: height, width)
+    :param pixel_coordinatess: coordinates of the pixel to get the 3D coordinate of (format: height, width)
     :param frame_name: frame relative to which to express the 3D coordinate
     """
-    assert pixel_coordinates.ndim == 2 and pixel_coordinates.shape[-1] == 2
-    pixel_coordinates_flipped = np.flip(pixel_coordinates, axis=-1)
+    assert pixel_coordinatess.ndim == 2 and pixel_coordinatess.shape[-1] == 2
+    pixel_coordinates_flipped = np.flip(pixel_coordinatess, axis=-1)
 
     # Get the valid depth measurements
     depth_image = depth_image.squeeze()
@@ -620,23 +620,27 @@ def frame_coordinate_from_depth_image(
         valid_coords, valid_depths, pixel_coordinates_flipped, method="cubic"
     )
     target_depth = target_depth / depth_image_response.source.depth_scale
-    print(target_depth)
+    print(f"{target_depth=}")
 
     # prepare intrinsics, extrinsics
     intrinsics = intrinsics_from_ImageSource(depth_image_response.source)
-    camera_tform_odom = camera_pose_from_ImageCapture(depth_image_response.shot)
+    camera_tform_odom = camera_pose_from_ImageCapture(
+        depth_image_response.shot, ODOM_FRAME_NAME
+    )
     odom_tform_camera = camera_tform_odom.inverse(inplace=False).as_matrix()
     frame_tform_odom = frame_transformer.transform_matrix(ODOM_FRAME_NAME, frame_name)
     frame_tform_camera = frame_tform_odom @ odom_tform_camera
 
     # calculate the 3d coordinates in the camera frame
-    ones = np.ones((pixel_coordinates.shape[0], 1))
-    pixel_coords_hom = np.concatenate((pixel_coordinates, ones), axis=1)
+    ones = np.ones((pixel_coordinatess.shape[0], 1))
+    pixel_coords_hom = np.concatenate((pixel_coordinatess, ones), axis=1)
     coords_camera_on_plane = pixel_coords_hom @ np.linalg.inv(intrinsics).T
-    coords_camera_norm = coords_camera_on_plane / coords_camera_on_plane[:, -1]
-    coords_camera = coords_camera_norm * target_depth
+    coords_camera_norm = (
+        coords_camera_on_plane / coords_camera_on_plane[:, -1, np.newaxis]
+    )
+    coords_camera = coords_camera_norm * target_depth[:, np.newaxis]
 
     coords_camera_hom = np.concatenate((coords_camera, ones.copy()), axis=1)
     coords_frame = coords_camera_hom @ frame_tform_camera.T
-    coords_frame_norm = coords_frame[:, :-1] / coords_frame[:, -1]
+    coords_frame_norm = coords_frame[:, :-1] / coords_frame[:, -1, np.newaxis]
     return coords_frame_norm

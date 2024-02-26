@@ -51,7 +51,7 @@ def predict(
     timeout: int = 90,
     input_format: str = "rgb",
     vis_block: bool = False,
-) -> list[Detection]:
+) -> list[Detection] | None:
     assert image.shape[-1] == 3
     if input_format == "bgr":
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -89,6 +89,7 @@ def predict(
     return detections
 
 
+# noinspection PyTypeChecker
 def drawer_handle_matches(detections: list[Detection]) -> list[Match]:
     def matching_score(
         drawer: Detection, handle: Detection, ioa_weight: float = 10.0
@@ -142,7 +143,7 @@ def drawer_handle_matches(detections: list[Detection]) -> list[Match]:
         if handle_idx not in handle_idxs:
             matches.append(Match(None, handle_detection))
 
-    print(matches)
+    return matches
 
 
 ########################################################################################
