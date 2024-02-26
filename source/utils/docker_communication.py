@@ -53,7 +53,7 @@ def _get_content(response: requests.Response, save_path: bytes | str) -> dict:
 
 
 def save_files(
-        data: list[(str, Callable[[str, Any], Any], Any)], save_path: str
+    data: list[(str, Callable[[str, Any], Any], Any)], save_path: str
 ) -> list[str]:
     """
     Save files and return paths so that they can be sent via requests
@@ -73,11 +73,11 @@ def save_files(
 
 
 def send_request(
-        server_address: str,
-        paths_dict: dict[str, str],
-        params: dict,
-        timeout: int,
-        save_path: str,
+    server_address: str,
+    paths_dict: dict[str, str],
+    params: dict,
+    timeout: int,
+    save_path: str,
 ) -> dict[str, Any]:
     """
     Send a request with files to a docker server.

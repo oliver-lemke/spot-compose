@@ -1,13 +1,12 @@
+import json
 import os
 
-import cv2
 import numpy as np
+
+import cv2
 import open3d as o3d
-import json
-
 from scipy.spatial.transform import Rotation
-from sklearn.linear_model import RANSACRegressor, LinearRegression
-
+from sklearn.linear_model import LinearRegression, RANSACRegressor
 from utils.darknet_interface import predict as drawer_predict
 from utils.recursive_config import Config
 
@@ -58,8 +57,9 @@ def main():
         camera_dict = json.load(file)
     mesh = o3d.io.read_triangle_mesh(mesh_path, True)
     mesh.compute_vertex_normals()
-    pcd = mesh.sample_points_poisson_disk(number_of_points=100_000,
-                                          use_triangle_normal=True)
+    pcd = mesh.sample_points_poisson_disk(
+        number_of_points=100_000, use_triangle_normal=True
+    )
 
     detections = drawer_predict(image, config, vis_block=False)
     drawer_detections = filter_detections(detections, "cabinet door")
@@ -81,7 +81,8 @@ def main():
     distance_max = 0.65
     point_distances = np.linalg.norm(points_camera, 2, axis=1)
     distance_mask = (point_distances >= distance_min) & (
-                point_distances <= distance_max)
+        point_distances <= distance_max
+    )
     full_mask = distance_mask & mask
 
     pcd_in = pcd.select_by_index(np.where(full_mask)[0])
@@ -93,8 +94,12 @@ def main():
     points_in = points[full_mask]
     X = points_in[:, :2]  # x and y coordinates
     y = points_in[:, 2]  # z coordinates
-    ransac = RANSACRegressor(estimator=LinearRegression(), min_samples=3,
-                             residual_threshold=0.05, max_trials=100)
+    ransac = RANSACRegressor(
+        estimator=LinearRegression(),
+        min_samples=3,
+        residual_threshold=0.05,
+        max_trials=100,
+    )
     ransac.fit(X, y)
 
     # Extract the inlier mask and coefficients
@@ -127,9 +132,7 @@ def test():
     # Camera intrinsic parameters
     fx, fy = 1000, 1000  # Focal length
     cx, cy = 500, 500  # Principal point
-    intrinsics = np.array([[fx, 0, cx],
-                           [0, fy, cy],
-                           [0, 0, 1]])
+    intrinsics = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]])
 
     # Camera pose (identity matrix for this example)
     extrinsics = np.eye(4)
@@ -153,8 +156,7 @@ def test():
     points = np.vstack((x_flat, y_flat, z_flat)).T
     pcd.points = o3d.utility.Vector3dVector(points)
 
-    points_img, mask = select_points_in_bbox(points, intrinsics,
-                                             extrinsics, bbox)
+    points_img, mask = select_points_in_bbox(points, intrinsics, extrinsics, bbox)
     print(mask.sum())
     pcd_filt = pcd.select_by_index(np.where(mask)[0])
 
@@ -162,5 +164,5 @@ def test():
     o3d.visualization.draw_geometries([sphere, pcd_filt])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

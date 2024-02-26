@@ -4,17 +4,18 @@ from __future__ import annotations
 import json
 import os
 
-import cv2
 import numpy as np
 
+import cv2
 import open3d as o3d
 from scipy.spatial.transform import Rotation
 from utils.point_clouds import add_coordinate_system
 from utils.recursive_config import Config
 
 
-def rotate_e(rpy: (float, float, float), degrees: bool = True) -> (
-np.ndarray, np.ndarray, np.ndarray):
+def rotate_e(
+    rpy: (float, float, float), degrees: bool = True
+) -> (np.ndarray, np.ndarray, np.ndarray):
     rot_matrix = Rotation.from_euler("xyz", rpy, degrees=degrees).as_matrix()
     e1, e2, e3 = rot_matrix.T
     return e1, e2, e3
@@ -35,7 +36,9 @@ def main():
         camera_dict = json.load(file)
     mesh = o3d.io.read_triangle_mesh(mesh_path, True)
     mesh.compute_vertex_normals()
-    pcd = mesh.sample_points_poisson_disk(number_of_points=50_000, use_triangle_normal=True)
+    pcd = mesh.sample_points_poisson_disk(
+        number_of_points=50_000, use_triangle_normal=True
+    )
 
     extrinsics = np.array(camera_dict["cameraPoseARFrame"]).reshape((4, 4))
     correct_matrix = Rotation.from_euler("x", 180, degrees=True).as_matrix()
@@ -46,9 +49,7 @@ def main():
 
     ground = np.asarray((0, 0, 0))
     geom = add_coordinate_system(pcd, (0, 255, 0), ground, size=2)
-    geom = add_coordinate_system(
-        geom, (255, 0, 255), coords, *rotate_e(rpy), size=2
-    )
+    geom = add_coordinate_system(geom, (255, 0, 255), coords, *rotate_e(rpy), size=2)
 
     o3d.visualization.draw_geometries([geom])
 
