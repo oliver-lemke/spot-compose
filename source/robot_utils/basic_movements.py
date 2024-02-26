@@ -135,10 +135,11 @@ def carry_arm(body_assist: bool = False) -> None:
     block_until_arm_arrives(robot_command_client, carry_command_id, 3.0)
 
 
-def stow_arm() -> None:
+def stow_arm(gripper_open: bool = False) -> None:
     """
     Put the arm in stowed position.
     """
+    set_gripper(gripper_open)
     # Stow the arm
     # Build the stow command using RobotCommandBuilder
     stow = RobotCommandBuilder.arm_stow_command()
@@ -345,6 +346,23 @@ def move_arm_distanced(
     result_pos = pose_distanced(pose, distance)
     move_arm(pose=result_pos, frame_name=frame_name, body_assist=True, **kwargs)
     return result_pos
+
+
+def gaze(target: Pose3D, frame_name: str, gripper_open: bool = True):
+    """
+    Gaze at target position relative to specified frame_name
+    """
+    root_frame = VISION_FRAME_NAME
+    target_in_vision = frame_transformer.transform(
+        frame_name, root_frame, target.as_pose()
+    )
+    gaze_command = RobotCommandBuilder.arm_gaze_command(
+        target_in_vision.x, target_in_vision.y, target_in_vision.z, root_frame
+    )
+    synchro_command = RobotCommandBuilder.build_synchro_command(gaze_command)
+    gaze_command_id = robot_command_client.robot_command(synchro_command)
+    block_until_arm_arrives(robot_command_client, gaze_command_id, 4.0)
+    set_gripper(gripper_open)
 
 
 def roll_over():
