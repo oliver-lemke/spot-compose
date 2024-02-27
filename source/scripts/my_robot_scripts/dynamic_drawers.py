@@ -81,7 +81,8 @@ class _DynamicDrawers(ControlFunction):
         **kwargs,
     ) -> str:
         STAND_DISTANCE = 1.1
-        START_BODY = (1.8, -1.3)
+        START_BODY = (1.65, -1.75)
+        # START_BODY = (2, 0)
         START_ANGLE = 180 + 0
         CABINET_COORDINATES = (0.23, -1.58, 0.4)
         STIFFNESS_DIAG1 = [200, 500, 500, 60, 60, 60]

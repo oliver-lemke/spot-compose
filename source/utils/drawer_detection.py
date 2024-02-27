@@ -91,9 +91,7 @@ def predict(
 
 # noinspection PyTypeChecker
 def drawer_handle_matches(detections: list[Detection]) -> list[Match]:
-    def matching_score(
-        drawer: Detection, handle: Detection, ioa_weight: float = 10.0
-    ) -> float:
+    def calculate_ioa(drawer: Detection, handle: Detection) -> float:
         _, drawer_conf, drawer_bbox = drawer
         *_, handle_bbox = handle
 
@@ -115,24 +113,33 @@ def drawer_handle_matches(detections: list[Detection]) -> list[Match]:
         handle_area = (handle_right - handle_left) * (handle_bottom - handle_top)
 
         ioa = intersection_area / handle_area
+        return ioa
+
+    def matching_score(
+        drawer: Detection, handle: Detection, ioa_weight: float = 10.0
+    ) -> tuple[float, float]:
+        _, drawer_conf, _ = drawer
+        ioa = calculate_ioa(drawer, handle)
         if ioa == 0:
-            return ioa
+            return ioa, ioa
         else:
-            return ioa_weight * ioa + drawer_conf
+            score = ioa_weight * ioa + drawer_conf
+            return score, ioa
 
     drawer_detections = [det for det in detections if det.name == "cabinet door"]
     handle_detections = [det for det in detections if det.name == "handle"]
 
-    matching_scores = np.zeros((len(drawer_detections), len(handle_detections)))
+    matching_scores = np.zeros((len(drawer_detections), len(handle_detections), 2))
     for didx, drawer_detection in enumerate(drawer_detections):
         for hidx, handle_detection in enumerate(handle_detections):
-            matching_scores[didx, hidx] = matching_score(
-                drawer_detection, handle_detection
+            matching_scores[didx, hidx] = np.array(
+                matching_score(drawer_detection, handle_detection)
             )
-    drawer_idxs, handle_idxs = linear_sum_assignment(-matching_scores)
+    drawer_idxs, handle_idxs = linear_sum_assignment(-matching_scores[..., 0])
     matches = [
         Match(drawer_detections[drawer_idx], handle_detections[handle_idx])
         for (drawer_idx, handle_idx) in zip(drawer_idxs, handle_idxs)
+        if matching_scores[drawer_idx, handle_idx, 1] > 0.9  # ioa
     ]
 
     for drawer_idx, drawer_detection in enumerate(drawer_detections):

@@ -102,7 +102,7 @@ class _HumanStream(ControlFunction):
             center_coords = frame_coordinate_from_depth_image(
                 depth_image=depth_response[0],
                 depth_image_response=depth_response[1],
-                pixel_coordinates=detection.reshape((1, 2)),
+                pixel_coordinatess=detection.reshape((1, 2)),
                 frame_name=frame_name,
             ).reshape((3,))
             human_pose = Pose3D(center_coords)
