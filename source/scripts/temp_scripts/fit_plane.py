@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import os
 
@@ -41,7 +43,7 @@ def main():
     # set up paths
     config = Config()
     data_path = config.get_subpath("data")
-    base_path = os.path.join(data_path, "24-02-22_15_24_26", "2024_02_22_15_17_21")
+    base_path = os.path.join(data_path, "prescans", "24-02-22")
     frame_nr = 147
     frame_nr_str = str(frame_nr).zfill(5)
     image_name = f"frame_{frame_nr_str}.jpg"
@@ -61,7 +63,7 @@ def main():
         number_of_points=100_000, use_triangle_normal=True
     )
 
-    detections = drawer_predict(image, config, vis_block=False)
+    detections = drawer_predict(image, config, vis_block=True)
     drawer_detections = filter_detections(detections, "cabinet door")
     x_center, y_center, w, h = drawer_detections[0][2]
     x_min, y_min = x_center - w / 2, y_center - h / 2
@@ -97,7 +99,7 @@ def main():
     ransac = RANSACRegressor(
         estimator=LinearRegression(),
         min_samples=3,
-        residual_threshold=0.05,
+        residual_threshold=0.02,
         max_trials=100,
     )
     ransac.fit(X, y)
@@ -119,6 +121,11 @@ def main():
     # Flatten the arrays and create a combined Nx3 array for Open3D
     points = np.vstack((xx.flatten(), yy.flatten(), zz.flatten())).T
 
+    zs = np.linspace(0, 1, 100) - c
+    xys = np.ones((100, 2)) * np.array((a, b))
+    extra_points = np.concatenate((xys, zs[:, np.newaxis]), axis=1)
+    points = np.concatenate((points, extra_points), axis=0)
+
     # Create a point cloud object
     plane = o3d.geometry.PointCloud()
     plane.points = o3d.utility.Vector3dVector(points)
@@ -128,7 +135,7 @@ def main():
     o3d.visualization.draw_geometries([pcd_in, pcd_out, plane])
 
 
-def test():
+def _test():
     # Camera intrinsic parameters
     fx, fy = 1000, 1000  # Focal length
     cx, cy = 500, 500  # Principal point

@@ -55,6 +55,6 @@ servers:
     port: 5002
     route: "vitpose/predict"
   darknet:
-    ip: "192.168.1.244"
+    ip: "192.168.1.35"
     port: 5003
     route: "darknet/predict"
