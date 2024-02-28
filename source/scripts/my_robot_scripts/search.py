@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 
 from bosdyn.client import Sdk
-from robot_utils.advanced_movement import pulling, pushing
+from robot_utils.advanced_movement import pull, push
 from robot_utils.base import ControlFunction, take_control_with_function
 from robot_utils.basic_movements import carry_arm, move_arm, move_body, stow_arm
 from robot_utils.frame_transformer import FrameTransformerSingleton
@@ -91,22 +91,22 @@ class _Search(ControlFunction):
 
         carry_arm(True)
         # First drawer
-        *_, pulled_pose = pulling(
+        *_, pulled_pose = pull(
             knob_pose_top, *PULL_DISTANCES, release_after=True, **static_params
         )
         move_arm(pulled_pose @ camera_add_pose, **static_params)
         imgs = get_rgb_pictures([GRIPPER_IMAGE_COLOR])
         detection_dicts["top"] = detect_objects(imgs[0][0], items)
-        pushing(pulled_pose, *PUSH_DISTANCES, **static_params)
+        push(pulled_pose, *PUSH_DISTANCES, **static_params)
 
         # Second drawer
-        *_, pulled_pose = pulling(
+        *_, pulled_pose = pull(
             knob_pose_bot, *PULL_DISTANCES, release_after=True, **static_params
         )
         move_arm(pulled_pose @ camera_add_pose, **static_params)
         imgs = get_rgb_pictures([GRIPPER_IMAGE_COLOR])
         detection_dicts["bottom"] = detect_objects(imgs[0][0], items)
-        pushing(pulled_pose, *PUSH_DISTANCES, **static_params)
+        push(pulled_pose, *PUSH_DISTANCES, **static_params)
 
         output_positions = {}
         for pos, detection_dict in detection_dicts.items():

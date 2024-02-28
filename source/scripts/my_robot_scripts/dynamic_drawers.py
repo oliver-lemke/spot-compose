@@ -5,15 +5,9 @@ import numpy as np
 
 from bosdyn.api.image_pb2 import ImageResponse
 from bosdyn.client import Sdk
+from robot_utils.advanced_movement import pull, push
 from robot_utils.base import ControlFunction, take_control_with_function
-from robot_utils.basic_movements import (
-    carry,
-    gaze,
-    move_arm_distanced,
-    move_body,
-    set_gripper,
-    stow_arm,
-)
+from robot_utils.basic_movements import carry, gaze, move_body, stow_arm
 from robot_utils.frame_transformer import FrameTransformerSingleton
 from robot_utils.video import (
     frame_coordinate_from_depth_image,
@@ -21,7 +15,6 @@ from robot_utils.video import (
     localize_from_images,
     select_points_from_bounding_box,
 )
-from utils import vis
 from utils.camera_geometry import plane_fitting
 from utils.coordinates import Pose2D, Pose3D, pose_distanced
 from utils.drawer_detection import Match, drawer_handle_matches
@@ -74,10 +67,10 @@ def calculate_handle_poses(
     # select all points within the point cloud that belong to a drawer (not a handle) and determine the planes
     # the axis of motion is simply the normal of that plane
     drawer_bbox_pointss = select_points_from_bounding_box(
-        depth_response, drawer_boxes, frame_name, vis_block=True
+        depth_response, drawer_boxes, frame_name, vis_block=False
     )
     handle_bbox_pointss = select_points_from_bounding_box(
-        depth_response, handle_boxes, frame_name, vis_block=True
+        depth_response, handle_boxes, frame_name, vis_block=False
     )
     points_camera = drawer_bbox_pointss[0]
     drawer_masks = drawer_bbox_pointss[1]
@@ -116,16 +109,15 @@ class _DynamicDrawers(ControlFunction):
         START_BODY = (2.0, -0.5)
         START_ANGLE = 180 + 0
         CABINET_COORDINATES = (0.23, -1.58, 0.4)
-        STIFFNESS_DIAG1 = [200, 500, 500, 60, 60, 60]
-        STIFFNESS_DIAG2 = [100, 0, 0, 60, 60, 60]
+        STIFFNESS_DIAG1 = [200, 500, 500, 60, 50, 60]
+        STIFFNESS_DIAG2 = [100, 0, 0, 60, 30, 30]
         DAMPING_DIAG = [2.5, 2.5, 2.5, 1.0, 1.0, 1.0]
         FORCES = [0, 0, 0, 0, 0, 0]
 
         frame_name = localize_from_images(config)
-        start_pose_bosdyn = frame_transformer.get_current_body_position_in_frame(
-            frame_name
+        start_pose = frame_transformer.get_current_body_position_in_frame(
+            frame_name, in_common_pose=True
         )
-        start_pose = Pose2D.from_bosdyn_pose(start_pose_bosdyn)
         print(f"{start_pose=}")
 
         ###############################################################################
@@ -143,7 +135,7 @@ class _DynamicDrawers(ControlFunction):
             in_frame="image",
             vis_block=False,
         )
-        # stow_arm()
+        stow_arm()
         predictions = drawer_predict(
             color_response[0], config, input_format="bgr", vis_block=True
         )
@@ -161,32 +153,37 @@ class _DynamicDrawers(ControlFunction):
         ###############################################################################
         ################################ ARM COMMANDS #################################
         ###############################################################################
-        keywords1 = {
-            "stiffness_diag": STIFFNESS_DIAG1,
-            "damping_diag": DAMPING_DIAG,
-            "forces": FORCES,
-            "timeout": 6,
-        }
-        keywords2 = {
-            "stiffness_diag": STIFFNESS_DIAG2,
-            "damping_diag": DAMPING_DIAG,
-            "forces": FORCES,
-            "timeout": 6,
-        }
 
         for handle_pose in handle_poses:
             body_pose = pose_distanced(handle_pose, STAND_DISTANCE).to_dimension(2)
             move_body(body_pose, frame_name)
 
-            move_arm_distanced(handle_pose, 0.1, frame_name)  # before handle
-            set_gripper(True)
-            move_arm_distanced(handle_pose, -0.1, frame_name, **keywords1)  # moving in
-            set_gripper(False)
-            move_arm_distanced(handle_pose, 0.3, frame_name, **keywords2)  # pulling
-            set_gripper(True)
-            move_arm_distanced(handle_pose, 0.3, frame_name)  # before handle
-            set_gripper(False)
-            move_arm_distanced(handle_pose, -0.1, frame_name, **keywords1)  # pushing
+            pull_start, pull_end = pull(
+                pose=handle_pose,
+                start_distance=0.1,
+                mid_distance=-0.1,
+                end_distance=0.3,
+                frame_name=frame_name,
+                stiffness_diag_in=STIFFNESS_DIAG1,
+                damping_diag_in=DAMPING_DIAG,
+                stiffness_diag_out=STIFFNESS_DIAG2,
+                damping_diag_out=DAMPING_DIAG,
+                forces=FORCES,
+                release_after=True,
+            )
+            direction = pull_start.coordinates - pull_end.coordinates
+            pull_start.set_rot_from_direction(direction)
+            pull_end.set_rot_from_direction(direction)
+            push(
+                start_pose=pull_end,
+                end_pose=pull_start,
+                start_distance=0.1,
+                end_distance=-0.05,
+                frame_name=frame_name,
+                stiffness_diag=STIFFNESS_DIAG1,
+                damping_diag=DAMPING_DIAG,
+                forces=FORCES,
+            )
 
         stow_arm()
 

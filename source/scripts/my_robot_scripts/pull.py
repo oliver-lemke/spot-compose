@@ -5,7 +5,7 @@ import time
 from bosdyn.client import Robot, Sdk
 from bosdyn.client.robot_command import RobotCommandClient
 from bosdyn.client.robot_state import RobotStateClient
-from robot_utils.advanced_movement import pulling, rotate, rotate_and_move_distanced
+from robot_utils.advanced_movement import pull, rotate, rotate_and_move_distanced
 from robot_utils.base import ControlFunction, take_control_with_function
 from robot_utils.basic_movements import high_carry, unstow_arm
 from robot_utils.graph_nav import full_localize
@@ -55,7 +55,7 @@ class _Pull(ControlFunction):
 
         unstow_arm(robot, robot_command_client, True)
 
-        pulling(knob_pose, *PULL_DISTANCES, release_after=True, **static_params)
+        pull(knob_pose, *PULL_DISTANCES, release_after=True, **static_params)
 
         high_carry(transformer, robot, robot_command_client)
 
