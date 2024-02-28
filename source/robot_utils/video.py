@@ -501,7 +501,9 @@ def localize_from_images(config: Config, vis_block: bool = False) -> str:
         show_two_geometries_colored(pcd_fiducial, pcd_ground)
 
     # get offset between prediction and ground truth
-    ground_tform_fiducial = icp(pcd_ground, pcd_fiducial, threshold=0.1)
+    ground_tform_fiducial = icp(
+        pcd_ground, pcd_fiducial, threshold=0.05, max_iteration=200
+    )
     ground_tform_body = ground_tform_fiducial @ fiducial_tform_body
 
     if vis_block:
@@ -648,6 +650,35 @@ def frame_coordinate_from_depth_image(
     coords_frame = coords_camera_hom @ frame_tform_camera.T
     coords_frame_norm = coords_frame[:, :-1] / coords_frame[:, -1, np.newaxis]
     return coords_frame_norm
+
+
+def project_3D_to_2D(
+    depth_image_response: (np.ndarray, ImageResponse),
+    coordinates_in_frame: np.ndarray,
+    frame_name: str,
+) -> np.ndarray:
+    depth_image, depth_response = depth_image_response
+    camera_tform_body = camera_pose_from_ImageCapture(
+        depth_response.shot, BODY_FRAME_NAME
+    ).as_matrix()
+    if frame_name is None:
+        frame_tform_body = camera_tform_body.copy()
+    else:
+        frame_tform_body = frame_transformer.transform_matrix(
+            BODY_FRAME_NAME, frame_name
+        )
+    body_tform_frame = np.linalg.inv(frame_tform_body)
+    camera_tform_frame = camera_tform_body @ body_tform_frame
+    intrinsics = intrinsics_from_ImageSource(depth_response.source)
+
+    # transform point cloud into camera frame
+    ones = np.ones((coordinates_in_frame.shape[0], 1))
+    pcd_frame_hom = np.concatenate((coordinates_in_frame, ones), axis=1)
+    pcd_camera_hom = pcd_frame_hom @ camera_tform_frame.T
+    pcd_camera = pcd_camera_hom[..., :3] / pcd_camera_hom[..., -1, np.newaxis]
+    pcd_2d_hom = pcd_camera @ intrinsics.T
+    pcd_2d = pcd_2d_hom[:, :2] / pcd_2d_hom[:, -1, np.newaxis]
+    return pcd_2d
 
 
 def select_points_from_bounding_box(

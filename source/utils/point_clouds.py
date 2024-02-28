@@ -244,7 +244,7 @@ def icp(
     pcd2: PointCloud,
     threshold: float = 0.2,
     trans_init: np.ndarray | None = None,
-    max_iteration: int = 5000,
+    max_iteration: int = 1000,
     point_to_point: bool = False,
 ) -> np.ndarray:
     """
