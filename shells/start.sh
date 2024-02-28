@@ -5,4 +5,7 @@ cd source
 p() {
   python -m "scripts.my_robot_scripts.$1"
 }
+ret() {
+  python -m "scripts.my_robot_scripts.return_to_start"
+}
 clear
