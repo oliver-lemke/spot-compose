@@ -261,6 +261,7 @@ def move_arm(
     unstow: bool = False,
     stow: bool = False,
     body_assist: bool = False,
+    follow_arm: bool = False,
     keep_static_after_moving: bool = False,
     stiffness_diag: list[int] | None = None,
     damping_diag: list[float] | None = None,
@@ -275,6 +276,7 @@ def move_arm(
     :param unstow: whether to unstow the arm before use
     :param stow: whether to stow the arm after use
     :param body_assist: whether to use body assist when grabbing
+    :param follow_arm: whether to follow arm
     :param keep_static_after_moving: if true, the robot will try to keep the arm at
     static position when moving, otherwise the arm will move with the robot
     :param stiffness_diag: diagonal stiffness matrix for impedance
@@ -314,7 +316,11 @@ def move_arm(
     if gripper_open is not None:
         set_gripper(gripper_open)
 
-    robot_cmd = RobotCommandBuilder.build_synchro_command(stand_command, arm_command)
+    commands = [stand_command, arm_command]
+    if follow_arm:
+        follow_arm_command = RobotCommandBuilder.follow_arm_command()
+        commands.append(follow_arm_command)
+    robot_cmd = RobotCommandBuilder.build_synchro_command(*commands)
 
     # Send the request
     cmd_id = robot_command_client.robot_command(robot_cmd)

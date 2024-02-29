@@ -70,12 +70,14 @@ def predict(
     if logger:
         logger.info(f"Received response!")
 
+    # no detections
     if len(contents) == 0:
-        return None
+        if vis_block:
+            draw_boxes(image, [])
+        return []
 
     detections = contents["detections"]
     # detections are in format (x_center, y_center, width, height)
-
     if vis_block:
         draw_boxes(image, detections)
 

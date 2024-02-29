@@ -395,6 +395,10 @@ def build_surrounding_point_cloud() -> PointCloud:
     return pcd_body
 
 
+class NoFiducialDetectedError(Exception):
+    pass
+
+
 def localize_from_images(config: Config, vis_block: bool = False) -> str:
     """
     Localize the robot from camera images and depth scans of the surrounding environment.
@@ -437,6 +441,9 @@ def localize_from_images(config: Config, vis_block: bool = False) -> str:
                 best_fit = detection.decision_margin
                 best_frame_idx = frame_idx
                 best_detection = detection
+
+    if best_detection is None:
+        raise NoFiducialDetectedError()
 
     # use that image to compute the current pose relative to it (body_tform_fiducial)
     _, best_response = image_tuples[best_frame_idx]
@@ -717,7 +724,7 @@ def select_points_from_bounding_box(
     # get masks for all bounding boxes
     bbox_masks = []
     for bbox in bboxes:
-        xmin, ymin, xmax, ymax = bbox
+        xmin, ymin, xmax, ymax = [int(val) for val in bbox]
         x_mask = (xmin <= pcd_2d[:, 0]) & (pcd_2d[:, 0] <= xmax)
         y_mask = (ymin <= pcd_2d[:, 1]) & (pcd_2d[:, 1] <= ymax)
         mask = x_mask & y_mask

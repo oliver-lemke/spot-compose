@@ -1,23 +1,27 @@
 # pylint: disable-all
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 
 from bosdyn.api.image_pb2 import ImageResponse
 from bosdyn.client import Sdk
 from robot_utils.advanced_movement import pull, push
 from robot_utils.base import ControlFunction, take_control_with_function
-from robot_utils.basic_movements import carry, gaze, move_body, stow_arm
+from robot_utils.basic_movements import carry, gaze, move_arm, move_body, stow_arm
 from robot_utils.frame_transformer import FrameTransformerSingleton
 from robot_utils.video import (
     frame_coordinate_from_depth_image,
     get_camera_rgbd,
     localize_from_images,
+    project_3D_to_2D,
     select_points_from_bounding_box,
 )
-from utils.camera_geometry import plane_fitting
+from utils import vis
+from utils.camera_geometry import plane_fitting_open3d
 from utils.coordinates import Pose2D, Pose3D, pose_distanced
-from utils.drawer_detection import Match, drawer_handle_matches
+from utils.drawer_detection import BBox, Detection, Match, drawer_handle_matches
 from utils.drawer_detection import predict as drawer_predict
 from utils.recursive_config import Config
 from utils.singletons import (
@@ -38,8 +42,31 @@ robot_state_client = RobotStateClientSingleton()
 world_object_client = WorldObjectClientSingleton()
 
 
+def find_plane_normal_pose(
+    points: np.ndarray,
+    center_coords: np.ndarray,
+    current_body: Pose2D,
+    threshold: float = 0.04,
+    min_samples: int = 3,
+    vis_block: bool = False,
+) -> Pose3D:
+    # TODO
+    normal = plane_fitting_open3d(
+        points, threshold=threshold, min_samples=min_samples, vis_block=vis_block
+    )
+    # dot product between offset and normal is negative when they point in opposite directions
+    offset = center_coords[:2] - current_body.coordinates
+    sign = np.sign(np.dot(offset, normal[:2]))
+    normal = sign * normal
+    pose = Pose3D(center_coords)
+    pose.set_rot_from_direction(normal)
+    return pose
+
+
 def calculate_handle_poses(
-    matches: list[Match], depth_response: ImageResponse, frame_name: str
+    matches: list[Match],
+    depth_image_response: (np.ndarray, ImageResponse),
+    frame_name: str,
 ) -> list[Pose3D]:
     """
     Calculates pose and axis of motion of all handles in the image.
@@ -48,18 +75,26 @@ def calculate_handle_poses(
     drawer_boxes = [match.drawer.bbox for match in matches]
     handle_boxes = [match.handle.bbox for match in matches]
 
+    depth_image, depth_response = depth_image_response
+
     # determine center coordinates for all handles
     for handle_bbox in handle_boxes:
-        x_center = int((handle_bbox.xmin + handle_bbox.xmax) // 2)
-        y_center = int((handle_bbox.ymin + handle_bbox.ymax) // 2)
+        xmin, ymin, xmax, ymax = [int(v) for v in handle_bbox]
+        # image_patch = depth_image[xmin:xmax, ymin:ymax].squeeze()
+        # image_patch[image_patch == 0.0] = 100_000
+        # center_flat = np.argmin(depth_image[xmin:xmax, ymin:ymax])
+        # center = np.array(np.unravel_index(center_flat, image_patch.shape))
+        # center = center.reshape((2,)) + np.array([xmin, ymin]).reshape((2,))
+
+        x_center, y_center = int((xmin + xmax) // 2), int((ymin + ymax) // 2)
         center = np.array([x_center, y_center])
         centers.append(center)
     centers = np.stack(centers, axis=0)
 
     # use centers to get depth and position of handle in frame coordinates
     center_coordss = frame_coordinate_from_depth_image(
-        depth_image=depth_response[0],
-        depth_image_response=depth_response[1],
+        depth_image=depth_image,
+        depth_image_response=depth_response,
         pixel_coordinatess=centers,
         frame_name=frame_name,
     ).reshape((-1, 3))
@@ -67,34 +102,102 @@ def calculate_handle_poses(
     # select all points within the point cloud that belong to a drawer (not a handle) and determine the planes
     # the axis of motion is simply the normal of that plane
     drawer_bbox_pointss = select_points_from_bounding_box(
-        depth_response, drawer_boxes, frame_name, vis_block=False
+        depth_image_response, drawer_boxes, frame_name, vis_block=False
     )
     handle_bbox_pointss = select_points_from_bounding_box(
-        depth_response, handle_boxes, frame_name, vis_block=False
+        depth_image_response, handle_boxes, frame_name, vis_block=False
     )
-    points_camera = drawer_bbox_pointss[0]
+    points_frame = drawer_bbox_pointss[0]
     drawer_masks = drawer_bbox_pointss[1]
     handle_masks = handle_bbox_pointss[1]
     drawer_only_masks = drawer_masks & (~handle_masks)
+    # for mask in drawer_only_masks:
+    #     vis.show_point_cloud_in_out(points_frame, mask)
 
     # we use the current body position to get the normal that points towards the robot, not away
-    current_body_bosdyn = frame_transformer.get_current_body_position_in_frame(
-        frame_name
+    current_body = frame_transformer.get_current_body_position_in_frame(
+        frame_name, in_common_pose=True
     )
-    current_body = Pose2D.from_bosdyn_pose(current_body_bosdyn)
     poses = []
-    for center_coords, bbox_mask in zip(center_coordss, drawer_masks):
-        normal = plane_fitting(points_camera[bbox_mask], threshold=0.04)
-        # dot product between offset and normal is negative when they point in opposite directions
-        offset = center_coords[:2] - current_body.coordinates
-        sign = np.sign(np.dot(offset, normal[:2]))
-        normal = sign * normal
-        pose = Pose3D(center_coords)
-        pose.set_rot_from_direction(normal)
+    for center_coords, bbox_mask in zip(center_coordss, drawer_only_masks):
+        pose = find_plane_normal_pose(
+            points_frame[bbox_mask],
+            center_coords,
+            current_body,
+            threshold=0.03,
+            min_samples=10,
+            vis_block=False,
+        )
         print(pose)
         poses.append(pose)
 
     return poses
+
+
+def refine_handle_position(
+    handle_detections: list[Detection],
+    prev_pose: Pose3D,
+    depth_image_response: (np.ndarray, ImageResponse),
+    frame_name: str,
+) -> Pose3D:
+    if len(handle_detections) == 0:
+        warnings.warn("No handles detected in refinement!")
+        return prev_pose
+    elif len(handle_detections) > 1:
+        centers = []
+        for det in handle_detections:
+            handle_bbox = det.bbox
+            x_center = int((handle_bbox.xmin + handle_bbox.xmax) // 2)
+            y_center = int((handle_bbox.ymin + handle_bbox.ymax) // 2)
+            center = np.array([x_center, y_center])
+            centers.append(center)
+        centers = np.stack(centers, axis=0)
+        prev_center = prev_pose.coordinates.reshape((1, 3))
+        prev_center_2D = project_3D_to_2D(depth_image_response, prev_center, frame_name)
+        closest_new_idx = np.argmin(
+            np.linalg.norm(centers - prev_center_2D, axis=1), axis=0
+        )
+        handle_bbox = handle_detections[closest_new_idx].bbox
+        detection_coordinates = centers[closest_new_idx].reshape((1, 2))
+    else:
+        handle_bbox = handle_detections[0].bbox
+        x_center = int((handle_bbox.xmin + handle_bbox.xmax) // 2)
+        y_center = int((handle_bbox.ymin + handle_bbox.ymax) // 2)
+        detection_coordinates = np.array([x_center, y_center]).reshape((1, 2))
+
+    center_coords = frame_coordinate_from_depth_image(
+        depth_image=depth_image_response[0],
+        depth_image_response=depth_image_response[1],
+        pixel_coordinatess=detection_coordinates,
+        frame_name=frame_name,
+    ).reshape((3,))
+
+    xmin, ymin, xmax, ymax = handle_bbox
+    d = 40
+    surrounding_bbox = BBox(xmin - d, ymin - d, xmax + d, ymax + d)
+    points_frame, [handle_mask, surr_mask] = select_points_from_bounding_box(
+        depth_image_response,
+        [handle_bbox, surrounding_bbox],
+        frame_name,
+        vis_block=False,
+    )
+    surr_only_mask = surr_mask & (~handle_mask)
+    current_body = frame_transformer.get_current_body_position_in_frame(
+        frame_name, in_common_pose=True
+    )
+
+    vis.show_point_cloud_in_out(points_frame, surr_only_mask)
+
+    pose = find_plane_normal_pose(
+        points_frame[surr_only_mask],
+        center_coords,
+        current_body,
+        threshold=0.01,
+        min_samples=10,
+        vis_block=False,
+    )
+    print(f"refined pose={pose}")
+    return pose
 
 
 class _DynamicDrawers(ControlFunction):
@@ -109,7 +212,7 @@ class _DynamicDrawers(ControlFunction):
         START_BODY = (2.0, -0.5)
         START_ANGLE = 180 + 0
         CABINET_COORDINATES = (0.23, -1.58, 0.4)
-        STIFFNESS_DIAG1 = [200, 500, 500, 60, 50, 60]
+        STIFFNESS_DIAG1 = [200, 500, 500, 60, 60, 60]
         STIFFNESS_DIAG2 = [100, 0, 0, 60, 30, 30]
         DAMPING_DIAG = [2.5, 2.5, 2.5, 1.0, 1.0, 1.0]
         FORCES = [0, 0, 0, 0, 0, 0]
@@ -137,7 +240,7 @@ class _DynamicDrawers(ControlFunction):
         )
         stow_arm()
         predictions = drawer_predict(
-            color_response[0], config, input_format="bgr", vis_block=True
+            color_response[0], config, input_format="bgr", vis_block=False
         )
         matches = drawer_handle_matches(predictions)
         filtered_matches = [
@@ -153,13 +256,30 @@ class _DynamicDrawers(ControlFunction):
         ###############################################################################
         ################################ ARM COMMANDS #################################
         ###############################################################################
+        camera_add_pose = Pose3D((-0.35, 0, 0.2))
+        camera_add_pose.set_rot_from_rpy((0, 35, 0), degrees=True)
 
+        carry()
         for handle_pose in handle_poses:
             body_pose = pose_distanced(handle_pose, STAND_DISTANCE).to_dimension(2)
             move_body(body_pose, frame_name)
 
+            # refine
+            move_arm(handle_pose @ camera_add_pose, frame_name)
+            depth_response, color_response = get_camera_rgbd(
+                in_frame="image",
+                vis_block=False,
+            )
+            predictions = drawer_predict(
+                color_response[0], config, input_format="bgr", vis_block=True
+            )
+            handle_detections = [det for det in predictions if det.name == "handle"]
+            refined_pose = refine_handle_position(
+                handle_detections, handle_pose, depth_response, frame_name
+            )
+
             pull_start, pull_end = pull(
-                pose=handle_pose,
+                pose=refined_pose,
                 start_distance=0.1,
                 mid_distance=-0.1,
                 end_distance=0.3,
@@ -169,6 +289,7 @@ class _DynamicDrawers(ControlFunction):
                 stiffness_diag_out=STIFFNESS_DIAG2,
                 damping_diag_out=DAMPING_DIAG,
                 forces=FORCES,
+                follow_arm=True,
                 release_after=True,
             )
             direction = pull_start.coordinates - pull_end.coordinates
@@ -182,6 +303,7 @@ class _DynamicDrawers(ControlFunction):
                 frame_name=frame_name,
                 stiffness_diag=STIFFNESS_DIAG1,
                 damping_diag=DAMPING_DIAG,
+                follow_arm=True,
                 forces=FORCES,
             )
 
@@ -198,8 +320,6 @@ class _DynamicDrawers(ControlFunction):
         return frame_name
 
 
-# TODO: check if I can find pose (so that for pushing I dont go from below or sth)
-# TODO: refinement when close to handle
 # TODO: take multiple images of cabinet
 # TODO: take only plane around handle for plane estimation
 

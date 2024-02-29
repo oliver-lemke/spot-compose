@@ -192,6 +192,7 @@ def pull(
     damping_diag_out: list[float] | None = None,
     forces: list[float] | None = None,
     release_after: bool = True,
+    follow_arm: bool = False,
     timeout: float = 6.0,
 ) -> (Pose3D, Pose3D):
     """
@@ -224,38 +225,32 @@ def pull(
         "stiffness_diag": stiffness_diag_in,
         "damping_diag": damping_diag_in,
         "forces": forces,
+        "follow_arm": follow_arm,
         "timeout": timeout,
     }
     keywords_out = {
         "stiffness_diag": stiffness_diag_out,
         "damping_diag": damping_diag_out,
         "forces": forces,
+        "follow_arm": follow_arm,
         "timeout": timeout,
     }
 
-    pose_in_body = frame_transformer.transform(
-        frame_name, BODY_FRAME_NAME, pose, in_common_pose=True
-    )
-
-    move_arm_distanced(pose_in_body, start_distance, BODY_FRAME_NAME)  # before handle
+    move_arm_distanced(pose, start_distance, frame_name)  # before handle
     set_gripper(True)
-    move_arm_distanced(
-        pose_in_body, mid_distance, BODY_FRAME_NAME, **keywords_in
-    )  # moving in
+    move_arm_distanced(pose, mid_distance, frame_name, **keywords_in)  # moving in
     set_gripper(False)  # grab
     pull_start = frame_transformer.get_hand_position_in_frame(
         frame_name, in_common_pose=True
     )
-    move_arm_distanced(
-        pose_in_body, end_distance, BODY_FRAME_NAME, **keywords_out
-    )  # pulling
+    move_arm_distanced(pose, end_distance, frame_name, **keywords_out)  # pulling
     pull_end = frame_transformer.get_hand_position_in_frame(
         frame_name, in_common_pose=True
     )
 
     if release_after:
         set_gripper(True)
-        move_arm_distanced(pull_end, start_distance, frame_name)
+        move_arm_distanced(pull_end, start_distance, frame_name, follow_arm=follow_arm)
 
     return pull_start, pull_end
 
@@ -269,6 +264,7 @@ def push(
     stiffness_diag: list[int] | None = None,
     damping_diag: list[float] | None = None,
     forces: list[float] | None = None,
+    follow_arm: bool = False,
     timeout: float = 6.0,
 ) -> (Pose3D, Pose3D):
     """
@@ -293,6 +289,7 @@ def push(
         "stiffness_diag": stiffness_diag,
         "damping_diag": damping_diag,
         "forces": forces,
+        "follow_arm": follow_arm,
         "timeout": timeout,
     }
 
