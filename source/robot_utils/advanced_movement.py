@@ -225,25 +225,29 @@ def pull(
         "stiffness_diag": stiffness_diag_in,
         "damping_diag": damping_diag_in,
         "forces": forces,
-        "follow_arm": follow_arm,
         "timeout": timeout,
     }
     keywords_out = {
         "stiffness_diag": stiffness_diag_out,
         "damping_diag": damping_diag_out,
         "forces": forces,
-        "follow_arm": follow_arm,
         "timeout": timeout,
     }
 
-    move_arm_distanced(pose, start_distance, frame_name)  # before handle
+    move_arm_distanced(
+        pose, start_distance, frame_name, follow_arm=False
+    )  # before handle
     set_gripper(True)
-    move_arm_distanced(pose, mid_distance, frame_name, **keywords_in)  # moving in
+    move_arm_distanced(
+        pose, mid_distance, frame_name, follow_arm=True, **keywords_in
+    )  # moving in
     set_gripper(False)  # grab
     pull_start = frame_transformer.get_hand_position_in_frame(
         frame_name, in_common_pose=True
     )
-    move_arm_distanced(pose, end_distance, frame_name, **keywords_out)  # pulling
+    move_arm_distanced(
+        pose, end_distance, frame_name, follow_arm=True, **keywords_out
+    )  # pulling
     pull_end = frame_transformer.get_hand_position_in_frame(
         frame_name, in_common_pose=True
     )
@@ -293,7 +297,9 @@ def push(
         "timeout": timeout,
     }
 
-    move_arm_distanced(start_pose, start_distance, frame_name)  # before handle
+    move_arm_distanced(
+        start_pose, start_distance, frame_name, follow_arm=follow_arm
+    )  # before handle
     set_gripper(False)  # fist
     move_arm_distanced(end_pose, end_distance, frame_name, **keywords)  # pushing
 

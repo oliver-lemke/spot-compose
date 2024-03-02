@@ -50,7 +50,7 @@ def find_plane_normal_pose(
     min_samples: int = 3,
     vis_block: bool = False,
 ) -> Pose3D:
-    # TODO
+    # TODO: filter for points nearest to center?
     normal = plane_fitting_open3d(
         points, threshold=threshold, min_samples=min_samples, vis_block=vis_block
     )
@@ -139,7 +139,11 @@ def refine_handle_position(
     prev_pose: Pose3D,
     depth_image_response: (np.ndarray, ImageResponse),
     frame_name: str,
+    discard_threshold: int = 20,
 ) -> Pose3D:
+    prev_center = prev_pose.coordinates.reshape((1, 3))
+    prev_center_2D = project_3D_to_2D(depth_image_response, prev_center, frame_name)
+
     if len(handle_detections) == 0:
         warnings.warn("No handles detected in refinement!")
         return prev_pose
@@ -152,8 +156,6 @@ def refine_handle_position(
             center = np.array([x_center, y_center])
             centers.append(center)
         centers = np.stack(centers, axis=0)
-        prev_center = prev_pose.coordinates.reshape((1, 3))
-        prev_center_2D = project_3D_to_2D(depth_image_response, prev_center, frame_name)
         closest_new_idx = np.argmin(
             np.linalg.norm(centers - prev_center_2D, axis=1), axis=0
         )
@@ -164,6 +166,12 @@ def refine_handle_position(
         x_center = int((handle_bbox.xmin + handle_bbox.xmax) // 2)
         y_center = int((handle_bbox.ymin + handle_bbox.ymax) // 2)
         detection_coordinates = np.array([x_center, y_center]).reshape((1, 2))
+
+        # if the distance between expected and mean detection is too large, it likely means that we detect another
+        # and also do not detect the original one we want to detect -> discard
+        if np.linalg.norm(detection_coordinates - prev_center_2D) > discard_threshold:
+            warnings.warn("Only detection discarded as unlikely to be true detection!")
+            detection_coordinates = prev_center_2D
 
     center_coords = frame_coordinate_from_depth_image(
         depth_image=depth_image_response[0],
@@ -209,7 +217,7 @@ class _DynamicDrawers(ControlFunction):
         **kwargs,
     ) -> str:
         STAND_DISTANCE = 1.1
-        START_BODY = (2.0, -0.5)
+        START_BODY = (2.0, -1.5)
         START_ANGLE = 180 + 0
         CABINET_COORDINATES = (0.23, -1.58, 0.4)
         STIFFNESS_DIAG1 = [200, 500, 500, 60, 60, 60]
