@@ -91,6 +91,53 @@ def predict(
     return detections
 
 
+def predict_darknet(
+    image: np.ndarray,
+    config: Config,
+    logger: Optional[Logger] = None,
+    timeout: int = 90,
+    input_format: str = "rgb",
+    vis_block: bool = False,
+) -> list[Detection] | None:
+    assert image.shape[-1] == 3
+    if input_format == "bgr":
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    address_details = config["servers"]["darknet"]
+    address = f"http://{address_details['ip']}:{address_details['port']}/{address_details['route']}"
+    tmp_path = prep_tmp_path(config)
+
+    save_data = [("image.npy", np.save, image)]
+    image_path, *_ = save_files(save_data, tmp_path)
+
+    paths_dict = {"image": image_path}
+    if logger:
+        logger.info(f"Sending request to {address}!")
+    contents = send_request(address, paths_dict, {}, timeout, tmp_path)
+    if logger:
+        logger.info(f"Received response!")
+
+    # no detections
+    if len(contents) == 0:
+        if vis_block:
+            draw_boxes(image, [])
+        return []
+
+    detections = contents["detections"]
+    # detections are in format (x_center, y_center, width, height)
+    if vis_block:
+        draw_boxes(image, detections)
+
+    def convert_format(detection: list[str, float, list[float]]) -> Detection:
+        (x, y, w, h) = detection[2]
+        xmin, xmax = x - w / 2, x + w / 2
+        ymin, ymax = y - h / 2, y + h / 2
+        return Detection(detection[0], detection[1], BBox(xmin, ymin, xmax, ymax))
+
+    detections = [convert_format(det) for det in detections]
+    return detections
+
+
 # noinspection PyTypeChecker
 def drawer_handle_matches(detections: list[Detection]) -> list[Match]:
     def calculate_ioa(drawer: Detection, handle: Detection) -> float:
@@ -170,7 +217,7 @@ def _test_pose() -> None:
     img_path = os.path.join(base_path, image_name)
     image = cv2.imread(img_path)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    keypoints = predict(image, config, vis_block=True)
+    keypoints = predict_darknet(image, config, vis_block=True)
     print(keypoints)
 
 
