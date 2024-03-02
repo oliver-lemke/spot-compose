@@ -22,7 +22,7 @@ from utils import vis
 from utils.camera_geometry import plane_fitting_open3d
 from utils.coordinates import Pose2D, Pose3D, pose_distanced
 from utils.drawer_detection import BBox, Detection, Match, drawer_handle_matches
-from utils.drawer_detection import predict as drawer_predict
+from utils.drawer_detection import predict_darknet as drawer_predict
 from utils.recursive_config import Config
 from utils.singletons import (
     GraphNavClientSingleton,
