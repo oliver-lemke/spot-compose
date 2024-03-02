@@ -123,7 +123,8 @@ disable=["attribute-defined-outside-init",
     "no-name-in-module",
     "bad-builtin",
     "too-complex",
-    "consider-alternative-union-syntax"]
+    "consider-alternative-union-syntax",
+    "consider-using-namedtuple-or-dataclass"]
 
 
 [tool.pylint.REPORTS]

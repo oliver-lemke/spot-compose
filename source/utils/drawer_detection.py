@@ -25,14 +25,16 @@ COLORS = {
     "refrigerator door": (0.082, 0.475, 0.627),
 }
 
+CATEGORIES = {"0": "door", "1": "handle", "2": "cabinet door", "3": "refrigerator door"}
+
 
 def draw_boxes(image: np.ndarray, detections: list[Detection]) -> None:
     plt.figure(figsize=(16, 10))
     plt.imshow(image)
     ax = plt.gca()
 
-    for name, conf, (x, y, w, h) in detections:
-        xmin, ymin = x - w / 2, y - h / 2
+    for name, conf, (xmin, ymin, xmax, ymax) in detections:
+        w, h = xmax - xmin, ymax - ymin
         ax.add_patch(
             plt.Rectangle(
                 (xmin, ymin), w, h, fill=False, color=COLORS[name], linewidth=6
@@ -44,7 +46,7 @@ def draw_boxes(image: np.ndarray, detections: list[Detection]) -> None:
     plt.show()
 
 
-def predict(
+def predict_yolodrawer(
     image: np.ndarray,
     config: Config,
     logger: Optional[Logger] = None,
@@ -56,7 +58,7 @@ def predict(
     if input_format == "bgr":
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-    address_details = config["servers"]["darknet"]
+    address_details = config["servers"]["yolodrawer"]
     address = f"http://{address_details['ip']}:{address_details['port']}/{address_details['route']}"
     tmp_path = prep_tmp_path(config)
 
@@ -68,7 +70,7 @@ def predict(
         logger.info(f"Sending request to {address}!")
     contents = send_request(address, paths_dict, {}, timeout, tmp_path)
     if logger:
-        logger.info(f"Received response!")
+        logger.info("Received response!")
 
     # no detections
     if len(contents) == 0:
@@ -76,18 +78,19 @@ def predict(
             draw_boxes(image, [])
         return []
 
-    detections = contents["detections"]
-    # detections are in format (x_center, y_center, width, height)
+    classes = contents["classes"]
+    confidences = contents["confidences"]
+    bboxes = contents["bboxes"]
+
+    detections = []
+    for cls, conf, bbox in zip(classes, confidences, bboxes):
+        name = CATEGORIES[str(int(cls))]
+        det = Detection(name, conf, BBox(*bbox))
+        detections.append(det)
+
     if vis_block:
         draw_boxes(image, detections)
 
-    def convert_format(detection: list[str, float, list[float]]) -> Detection:
-        (x, y, w, h) = detection[2]
-        xmin, xmax = x - w / 2, x + w / 2
-        ymin, ymax = y - h / 2, y + h / 2
-        return Detection(detection[0], detection[1], BBox(xmin, ymin, xmax, ymax))
-
-    detections = [convert_format(det) for det in detections]
     return detections
 
 
@@ -115,7 +118,7 @@ def predict_darknet(
         logger.info(f"Sending request to {address}!")
     contents = send_request(address, paths_dict, {}, timeout, tmp_path)
     if logger:
-        logger.info(f"Received response!")
+        logger.info("Received response!")
 
     # no detections
     if len(contents) == 0:
@@ -141,7 +144,7 @@ def predict_darknet(
 # noinspection PyTypeChecker
 def drawer_handle_matches(detections: list[Detection]) -> list[Match]:
     def calculate_ioa(drawer: Detection, handle: Detection) -> float:
-        _, drawer_conf, drawer_bbox = drawer
+        _, _, drawer_bbox = drawer
         *_, handle_bbox = handle
 
         # calculate overlap
@@ -212,13 +215,20 @@ def drawer_handle_matches(detections: list[Detection]) -> list[Match]:
 def _test_pose() -> None:
     config = Config()
     base_path = config.get_subpath("data")
-    image_name = "img.jpg"
-    # image_name = "landscape.png"
-    img_path = os.path.join(base_path, image_name)
-    image = cv2.imread(img_path)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    keypoints = predict_darknet(image, config, vis_block=True)
-    print(keypoints)
+    dir_path = os.path.join(base_path, "test", "iCloud Photos")
+    image_names = [
+        "IMG_1885.jpg",
+        "IMG_1886.jpg",
+        "IMG_1887.jpg",
+        "IMG_1888.jpg",
+        "IMG_1889.jpg",
+        "IMG_1890.jpg",
+    ]
+    for image_name in image_names:
+        img_path = os.path.join(dir_path, image_name)
+        image = cv2.imread(img_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        _ = predict_yolodrawer(image, config, vis_block=True)
 
 
 if __name__ == "__main__":

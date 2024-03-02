@@ -58,3 +58,7 @@ servers:
     ip: "192.168.1.35"
     port: 5003
     route: "darknet/predict"
+  yolodrawer:
+    ip: "192.168.1.35"
+    port: 5004
+    route: "yolodrawer/predict"
