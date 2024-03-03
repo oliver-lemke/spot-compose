@@ -294,6 +294,8 @@ def main() -> None:
     icp_tform_ground = icp_tform_fiducial @ fiducial_tform_ground
     mesh_icp = mesh_ground.transform(icp_tform_ground)
 
+    # o3d.visualization.draw_geometries([mesh_icp, scan_icp])
+
     # POINT CLOUD HAS BEEN TRANSFORMED with icp_tform_ground
     # now we create the scene folder structure for openmask3d
     # https://github.com/OpenMask3D/openmask3d
@@ -303,6 +305,7 @@ def main() -> None:
     ground_tform_camera_save_path = os.path.join(
         pose_save_path, "ground_tform_camera.txt"
     )
+    icp_tform_ground_save_path = os.path.join(pose_save_path, "icp_tform_ground.txt")
     color_save_path = os.path.join(save_path, "color")
     depth_save_path = os.path.join(save_path, "depth")
     intrinsic_save_path = os.path.join(save_path, "intrinsic")
@@ -331,7 +334,7 @@ def main() -> None:
         icp_tform_camera = icp_tform_ground @ ground_tform_camera
         camera_tform_icp = np.linalg.inv(icp_tform_camera)
 
-        pose_path = os.path.join(pose_save_path, f"icp_tform_ground_{frame_nr}.txt")
+        pose_path = os.path.join(pose_save_path, f"camera_tform_icp_{frame_nr}.txt")
         save_ndarray(pose_path, camera_tform_icp)
 
         if SAVE_OPENMASK3D:
@@ -361,6 +364,7 @@ def main() -> None:
         os.path.join(intrinsic_save_path, "intrinsic_color.txt"), intrinsics_4x4
     )
     save_ndarray(ground_tform_camera_save_path, ground_tform_camera)
+    save_ndarray(icp_tform_ground_save_path, icp_tform_ground)
     o3d.io.write_point_cloud(cloud_save_path, scan_icp)
     o3d.io.write_triangle_mesh(mesh_save_path, mesh_icp)
 
