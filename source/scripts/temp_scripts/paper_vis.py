@@ -7,13 +7,15 @@ import numpy as np
 import cv2
 import open3d as o3d
 from utils.coordinates import Pose3D
+from utils.mask3D_interface import get_all_item_point_clouds
 from utils.recursive_config import Config
 
 
-def render_depth(mesh, camera):
+def render_depth(geometries, camera):
     vis = o3d.visualization.Visualizer()
     vis.create_window(width=1920, height=1080, visible=False)
-    vis.add_geometry(mesh)
+    for geom in geometries:
+        vis.add_geometry(geom)
 
     view_control = vis.get_view_control()
     view_control.convert_from_pinhole_camera_parameters(camera, True)
@@ -32,15 +34,17 @@ def main():
     # paths
     config = Config()
     data_path = config.get_subpath("data")
-    aligned_pcd_dir = os.path.join(data_path, "aligned_point_clouds", "24-02-08")
-    pre_pcd_dir = os.path.join(data_path, "prescans", "24-02-08")
+    pcd_name = config["pre_scanned_graphs"]["high_res"]
+    aligned_pcd_dir = os.path.join(data_path, "aligned_point_clouds", pcd_name)
+    pre_pcd_dir = os.path.join(data_path, "prescans", pcd_name)
     pcd_path = os.path.join(aligned_pcd_dir, "scene.ply")
     icp_tform_ground_path = os.path.join(
         aligned_pcd_dir, "pose", "icp_tform_ground.txt"
     )
     intrinsics_path = os.path.join(aligned_pcd_dir, "intrinsic", "intrinsic_color.txt")
     mesh_path = os.path.join(pre_pcd_dir, "textured_output.obj")
-    mask_path = os.path.join(data_path, "masked", "20240208_141606_scene")
+    mask_name = config["pre_scanned_graphs"]["masked"]
+    mask_path = os.path.join(data_path, "masked", mask_name)
     output_dir = os.path.join(data_path, "tmp")
     os.makedirs(output_dir, exist_ok=True)
     img_path = os.path.join(output_dir, "img_rgb.png")
@@ -54,7 +58,7 @@ def main():
 
     # initial vis
     mesh = mesh_ground.transform(icp_tform_ground)
-    pcd = o3d.io.read_point_cloud(pcd_path)
+    colored_pcds = get_all_item_point_clouds(mask_path, pcd_path)
     # o3d.visualization.draw_geometries([mesh, pcd])
 
     # render image
@@ -71,15 +75,19 @@ def main():
         width=width, height=height, intrinsic_matrix=intrinsics
     )
     camera.extrinsic = camera_tform_icp.as_matrix()
-    depth, image = render_depth(mesh, camera)
+    depth, image = render_depth([mesh, *colored_pcds], camera)
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    # image_rgb = jpg
-
     cv2.imshow("Image Title", image_rgb)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
-
     cv2.imwrite(img_path, image_rgb * 255)
+
+    depth, image = render_depth([mesh, *colored_pcds], camera)
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    cv2.imshow("Image Title", image_rgb)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    cv2.imwrite(segmentation_path, image_rgb * 255)
     # cv2.imwrite(depth_path, depth)
 
 
