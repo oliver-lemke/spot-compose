@@ -22,7 +22,7 @@ from utils import vis
 from utils.camera_geometry import plane_fitting_open3d
 from utils.coordinates import Pose2D, Pose3D, pose_distanced
 from utils.drawer_detection import BBox, Detection, Match, drawer_handle_matches
-from utils.drawer_detection import predict_darknet as drawer_predict
+from utils.drawer_detection import predict_yolodrawer as drawer_predict
 from utils.recursive_config import Config
 from utils.singletons import (
     GraphNavClientSingleton,
@@ -139,7 +139,7 @@ def refine_handle_position(
     prev_pose: Pose3D,
     depth_image_response: (np.ndarray, ImageResponse),
     frame_name: str,
-    discard_threshold: int = 20,
+    discard_threshold: int = 100,
 ) -> Pose3D:
     prev_center = prev_pose.coordinates.reshape((1, 3))
     prev_center_2D = project_3D_to_2D(depth_image_response, prev_center, frame_name)
@@ -169,8 +169,13 @@ def refine_handle_position(
 
         # if the distance between expected and mean detection is too large, it likely means that we detect another
         # and also do not detect the original one we want to detect -> discard
-        if np.linalg.norm(detection_coordinates - prev_center_2D) > discard_threshold:
-            warnings.warn("Only detection discarded as unlikely to be true detection!")
+        pixel_offset = np.linalg.norm(detection_coordinates - prev_center_2D)
+        if pixel_offset > discard_threshold:
+            print(
+                "Only detection discarded as unlikely to be true detection!",
+                f"{pixel_offset=}",
+                sep="\n",
+            )
             detection_coordinates = prev_center_2D
 
     center_coords = frame_coordinate_from_depth_image(
@@ -217,7 +222,7 @@ class _DynamicDrawers(ControlFunction):
         **kwargs,
     ) -> str:
         STAND_DISTANCE = 1.1
-        START_BODY = (2.0, -1.5)
+        START_BODY = (2, -0.5)
         START_ANGLE = 180 + 0
         CABINET_COORDINATES = (0.23, -1.58, 0.4)
         STIFFNESS_DIAG1 = [200, 500, 500, 60, 60, 60]
@@ -248,7 +253,7 @@ class _DynamicDrawers(ControlFunction):
         )
         stow_arm()
         predictions = drawer_predict(
-            color_response[0], config, input_format="bgr", vis_block=False
+            color_response[0], config, input_format="bgr", vis_block=True
         )
         matches = drawer_handle_matches(predictions)
         filtered_matches = [
@@ -297,7 +302,7 @@ class _DynamicDrawers(ControlFunction):
                 stiffness_diag_out=STIFFNESS_DIAG2,
                 damping_diag_out=DAMPING_DIAG,
                 forces=FORCES,
-                follow_arm=True,
+                follow_arm=False,
                 release_after=True,
             )
             direction = pull_start.coordinates - pull_end.coordinates
@@ -311,8 +316,8 @@ class _DynamicDrawers(ControlFunction):
                 frame_name=frame_name,
                 stiffness_diag=STIFFNESS_DIAG1,
                 damping_diag=DAMPING_DIAG,
-                follow_arm=True,
                 forces=FORCES,
+                follow_arm=False,
             )
 
         stow_arm()

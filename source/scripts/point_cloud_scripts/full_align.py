@@ -276,7 +276,7 @@ def main() -> None:
         str(autowalk_ply_path), f'{config["pre_scanned_graphs"]["low_res"]}.ply'
     )
     autowalk_cloud = o3d.io.read_point_cloud(str(autowalk_ply_path))
-    draw_point_clouds(scan_ground, autowalk_cloud)
+    # draw_point_clouds(scan_ground, autowalk_cloud)
 
     scan_fiducial = copy.deepcopy(scan_ground).transform(fiducial_tform_ground)
     # scan_vis = add_coordinate_system(
@@ -284,11 +284,11 @@ def main() -> None:
     # )
     # o3d.visualization.draw_geometries([scan_vis])
 
-    draw_point_clouds(scan_fiducial, autowalk_cloud)
+    # draw_point_clouds(scan_fiducial, autowalk_cloud)
     fiducial_tform_icp = icp(scan_fiducial, autowalk_cloud, threshold=0.15)
     icp_tform_fiducial = np.linalg.inv(fiducial_tform_icp)
     scan_icp = copy.deepcopy(scan_fiducial).transform(icp_tform_fiducial)
-    draw_point_clouds(scan_icp, autowalk_cloud)
+    # draw_point_clouds(scan_icp, autowalk_cloud)
 
     # get full transformation_matrix
     icp_tform_ground = icp_tform_fiducial @ fiducial_tform_ground
