@@ -1,7 +1,9 @@
 # pylint: disable-all
 from __future__ import annotations
 
+import os
 import warnings
+from collections import defaultdict
 
 import numpy as np
 
@@ -18,11 +20,14 @@ from robot_utils.video import (
     project_3D_to_2D,
     select_points_from_bounding_box,
 )
-from utils import vis
+from sklearn.cluster import DBSCAN
+from utils import recursive_config, vis
 from utils.camera_geometry import plane_fitting_open3d
-from utils.coordinates import Pose2D, Pose3D, pose_distanced
+from utils.coordinates import Pose2D, Pose3D, average_pose3Ds, pose_distanced
 from utils.drawer_detection import BBox, Detection, Match, drawer_handle_matches
 from utils.drawer_detection import predict_yolodrawer as drawer_predict
+from utils.mask3D_interface import get_coordinates_from_item
+from utils.point_clouds import body_planning_mult_furthest
 from utils.recursive_config import Config
 from utils.singletons import (
     GraphNavClientSingleton,
@@ -89,6 +94,8 @@ def calculate_handle_poses(
         x_center, y_center = int((xmin + xmax) // 2), int((ymin + ymax) // 2)
         center = np.array([x_center, y_center])
         centers.append(center)
+    if len(centers) == 0:
+        return []
     centers = np.stack(centers, axis=0)
 
     # use centers to get depth and position of handle in frame coordinates
@@ -132,6 +139,29 @@ def calculate_handle_poses(
         poses.append(pose)
 
     return poses
+
+
+def cluster_handle_poses(
+    handles_posess: list[list[Pose3D]], eps: float = 0.1, min_samples: int = 2
+) -> list[Pose3D]:
+    handles_poses_flat = [
+        handle_pose for handles_poses in handles_posess for handle_pose in handles_poses
+    ]
+    handle_coords = [handle_pose.coordinates for handle_pose in handles_poses_flat]
+    dbscan = DBSCAN(eps=eps, min_samples=min_samples).fit(handle_coords)
+
+    cluster_dict = defaultdict(list)
+    for idx, label in enumerate(dbscan.labels_):
+        handle_pose = handles_poses_flat[idx]
+        cluster_dict[str(label)].append(handle_pose)
+
+    avg_poses = []
+    for key, cluster in cluster_dict.items():
+        if key == -1:
+            continue
+        avg_pose = average_pose3Ds(cluster)
+        avg_poses.append(avg_pose)
+    return avg_poses
 
 
 def refine_handle_position(
@@ -199,7 +229,8 @@ def refine_handle_position(
         frame_name, in_common_pose=True
     )
 
-    vis.show_point_cloud_in_out(points_frame, surr_only_mask)
+    # vis_block=False
+    # vis.show_point_cloud_in_out(points_frame, surr_only_mask)
 
     pose = find_plane_normal_pose(
         points_frame[surr_only_mask],
@@ -222,13 +253,39 @@ class _DynamicDrawers(ControlFunction):
         **kwargs,
     ) -> str:
         STAND_DISTANCE = 1.1
-        START_BODY = (2, -0.5)
+        # BODY_POSES = [(1.2, 0), (2, -0.5), (2, -1.5)]
         START_ANGLE = 180 + 0
-        CABINET_COORDINATES = (0.23, -1.58, 0.4)
         STIFFNESS_DIAG1 = [200, 500, 500, 60, 60, 60]
         STIFFNESS_DIAG2 = [100, 0, 0, 60, 30, 30]
         DAMPING_DIAG = [2.5, 2.5, 2.5, 1.0, 1.0, 1.0]
         FORCES = [0, 0, 0, 0, 0, 0]
+
+        config = recursive_config.Config()
+
+        mask_path = config.get_subpath("masks")
+        ending = config["pre_scanned_graphs"]["masked"]
+        mask_path = os.path.join(mask_path, ending)
+
+        pcd_path = config.get_subpath("aligned_point_clouds")
+        ending = config["pre_scanned_graphs"]["high_res"]
+        pcd_path = os.path.join(str(pcd_path), ending, "scene.ply")
+
+        cabinet_pcd, env_pcd = get_coordinates_from_item(
+            "cabinet", mask_path, pcd_path, index=2
+        )
+        cabinet_center = np.mean(np.asarray(cabinet_pcd.points), axis=0)
+        cabinet_pose = Pose3D(cabinet_center)
+        print(f"{cabinet_pose=}")
+
+        body_poses = body_planning_mult_furthest(
+            env_pcd,
+            cabinet_pose,
+            min_target_distance=1.75,
+            max_target_distance=2.25,
+            min_obstacle_distance=0.75,
+            n=4,
+            vis_block=True,
+        )
 
         frame_name = localize_from_images(config)
         start_pose = frame_transformer.get_current_body_position_in_frame(
@@ -240,32 +297,34 @@ class _DynamicDrawers(ControlFunction):
         ############################### DETECT DRAWERS ################################
         ###############################################################################
 
-        rotation_pose = Pose2D(START_BODY)
-        rotation_pose.set_rot_from_angle(START_ANGLE, degrees=True)
-        move_body(rotation_pose, frame_name)
+        handles_posess = []
+        for start_body in body_poses:
+            rotation_pose = start_body.to_dimension(2)
+            move_body(rotation_pose, frame_name)
 
-        cabinet_pose = Pose3D(CABINET_COORDINATES)
-        carry()
-        gaze(cabinet_pose, frame_name, gripper_open=True)
-        depth_response, color_response = get_camera_rgbd(
-            in_frame="image",
-            vis_block=False,
-        )
-        stow_arm()
-        predictions = drawer_predict(
-            color_response[0], config, input_format="bgr", vis_block=True
-        )
-        matches = drawer_handle_matches(predictions)
-        filtered_matches = [
-            m for m in matches if (m.handle is not None and m.drawer is not None)
-        ]
-        filtered_sorted_matches = sorted(
-            filtered_matches, key=lambda m: (m.handle.bbox.ymin, m.handle.bbox.xmin)
-        )
-        handle_poses = calculate_handle_poses(
-            filtered_sorted_matches, depth_response, frame_name
-        )
+            carry()
+            gaze(cabinet_pose, frame_name, gripper_open=True)
+            depth_response, color_response = get_camera_rgbd(
+                in_frame="image",
+                vis_block=False,
+            )
+            stow_arm()
+            predictions = drawer_predict(
+                color_response[0], config, input_format="bgr", vis_block=True
+            )
+            matches = drawer_handle_matches(predictions)
+            filtered_matches = [
+                m for m in matches if (m.handle is not None and m.drawer is not None)
+            ]
+            filtered_sorted_matches = sorted(
+                filtered_matches, key=lambda m: (m.handle.bbox.ymin, m.handle.bbox.xmin)
+            )
+            handle_poses = calculate_handle_poses(
+                filtered_sorted_matches, depth_response, frame_name
+            )
+            handles_posess.append(handle_poses)
 
+        handle_poses = cluster_handle_poses(handles_posess)
         ###############################################################################
         ################################ ARM COMMANDS #################################
         ###############################################################################
@@ -331,10 +390,6 @@ class _DynamicDrawers(ControlFunction):
         ###############################################################################
 
         return frame_name
-
-
-# TODO: take multiple images of cabinet
-# TODO: take only plane around handle for plane estimation
 
 
 def main():
