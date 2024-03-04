@@ -20,7 +20,7 @@ pre_scanned_graphs:
   floor: -0.1
   low_res: "24-02-22"
   high_res: "24-02-22"
-  masked: "20240303_153013_scene"
+  masked: "20240304_095729_scene"
 
 # paths are relative from project_root_directory
 subpaths:

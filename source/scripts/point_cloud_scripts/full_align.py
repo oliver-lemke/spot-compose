@@ -337,9 +337,11 @@ def main() -> None:
         pose_path = os.path.join(pose_save_path, f"camera_tform_icp_{frame_nr}.txt")
         save_ndarray(pose_path, camera_tform_icp)
 
+        intrinsics = get_camera_intrinsics(json_path)
+        intrinsic = intrinsics
+
         if SAVE_OPENMASK3D:
             height, width = jpg.shape[:2]
-            intrinsics = get_camera_intrinsics(json_path)
             camera = o3d.camera.PinholeCameraParameters()
             camera.intrinsic = o3d.camera.PinholeCameraIntrinsic(
                 width=width, height=height, intrinsic_matrix=intrinsics
@@ -348,7 +350,6 @@ def main() -> None:
             depth, _ = render_depth(mesh_icp, camera)
             # image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) * 255
             image_rgb = jpg
-            intrinsic = intrinsics
 
             color_path = os.path.join(color_save_path, f"{frame_nr}.jpg")
             depth_path = os.path.join(depth_save_path, f"{frame_nr}.png")
