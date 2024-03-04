@@ -269,14 +269,14 @@ def main() -> None:
     scan_ground = mesh_ground.sample_points_poisson_disk(
         number_of_points=200_000, use_triangle_normal=True
     )
-    o3d.visualization.draw_geometries([mesh_ground])
+    # o3d.visualization.draw_geometries([mesh_ground])
 
     autowalk_ply_path = config.get_subpath("point_clouds")
     autowalk_ply_path = os.path.join(
         str(autowalk_ply_path), f'{config["pre_scanned_graphs"]["low_res"]}.ply'
     )
     autowalk_cloud = o3d.io.read_point_cloud(str(autowalk_ply_path))
-    draw_point_clouds(scan_ground, autowalk_cloud)
+    # draw_point_clouds(scan_ground, autowalk_cloud)
 
     scan_fiducial = copy.deepcopy(scan_ground).transform(fiducial_tform_ground)
     # scan_vis = add_coordinate_system(
@@ -284,15 +284,17 @@ def main() -> None:
     # )
     # o3d.visualization.draw_geometries([scan_vis])
 
-    draw_point_clouds(scan_fiducial, autowalk_cloud)
+    # draw_point_clouds(scan_fiducial, autowalk_cloud)
     fiducial_tform_icp = icp(scan_fiducial, autowalk_cloud, threshold=0.15)
     icp_tform_fiducial = np.linalg.inv(fiducial_tform_icp)
     scan_icp = copy.deepcopy(scan_fiducial).transform(icp_tform_fiducial)
-    draw_point_clouds(scan_icp, autowalk_cloud)
+    # draw_point_clouds(scan_icp, autowalk_cloud)
 
     # get full transformation_matrix
     icp_tform_ground = icp_tform_fiducial @ fiducial_tform_ground
     mesh_icp = mesh_ground.transform(icp_tform_ground)
+
+    # o3d.visualization.draw_geometries([mesh_icp, scan_icp])
 
     # POINT CLOUD HAS BEEN TRANSFORMED with icp_tform_ground
     # now we create the scene folder structure for openmask3d
@@ -303,6 +305,7 @@ def main() -> None:
     ground_tform_camera_save_path = os.path.join(
         pose_save_path, "ground_tform_camera.txt"
     )
+    icp_tform_ground_save_path = os.path.join(pose_save_path, "icp_tform_ground.txt")
     color_save_path = os.path.join(save_path, "color")
     depth_save_path = os.path.join(save_path, "depth")
     intrinsic_save_path = os.path.join(save_path, "intrinsic")
@@ -331,12 +334,14 @@ def main() -> None:
         icp_tform_camera = icp_tform_ground @ ground_tform_camera
         camera_tform_icp = np.linalg.inv(icp_tform_camera)
 
-        pose_path = os.path.join(pose_save_path, f"icp_tform_ground_{frame_nr}.txt")
+        pose_path = os.path.join(pose_save_path, f"camera_tform_icp_{frame_nr}.txt")
         save_ndarray(pose_path, camera_tform_icp)
+
+        intrinsics = get_camera_intrinsics(json_path)
+        intrinsic = intrinsics
 
         if SAVE_OPENMASK3D:
             height, width = jpg.shape[:2]
-            intrinsics = get_camera_intrinsics(json_path)
             camera = o3d.camera.PinholeCameraParameters()
             camera.intrinsic = o3d.camera.PinholeCameraIntrinsic(
                 width=width, height=height, intrinsic_matrix=intrinsics
@@ -345,7 +350,6 @@ def main() -> None:
             depth, _ = render_depth(mesh_icp, camera)
             # image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) * 255
             image_rgb = jpg
-            intrinsic = intrinsics
 
             color_path = os.path.join(color_save_path, f"{frame_nr}.jpg")
             depth_path = os.path.join(depth_save_path, f"{frame_nr}.png")
@@ -361,6 +365,7 @@ def main() -> None:
         os.path.join(intrinsic_save_path, "intrinsic_color.txt"), intrinsics_4x4
     )
     save_ndarray(ground_tform_camera_save_path, ground_tform_camera)
+    save_ndarray(icp_tform_ground_save_path, icp_tform_ground)
     o3d.io.write_point_cloud(cloud_save_path, scan_icp)
     o3d.io.write_triangle_mesh(mesh_save_path, mesh_icp)
 

@@ -12,17 +12,14 @@ time. The main class here is the FrameTransformer.
 
 from __future__ import annotations
 
+import typing
+
 import numpy as np
 
 from bosdyn.api import trajectory_pb2
 from bosdyn.client import math_helpers
-from bosdyn.client.frame_helpers import (
-    BODY_FRAME_NAME,
-    ODOM_FRAME_NAME,
-    VISION_FRAME_NAME,
-    get_a_tform_b,
-)
-from utils.coordinates import build_trajectory_point
+from bosdyn.client.frame_helpers import BODY_FRAME_NAME, ODOM_FRAME_NAME, get_a_tform_b
+from utils.coordinates import Pose2D, Pose3D, build_trajectory_point
 
 GRAPH_SEED_FRAME_NAME = "seed_graph"
 VISUAL_SEED_FRAME_NAME = "seed_visual"
@@ -39,6 +36,27 @@ robot = RobotSingleton()
 robot_state_client = RobotStateClientSingleton()
 world_object_client = WorldObjectClientSingleton()
 graph_nav_client = GraphNavClientSingleton()
+
+BosDynPose = typing.Union[math_helpers.SE2Pose, math_helpers.SE3Pose]
+CommonPose = typing.Union[Pose2D, Pose3D]
+AnyPose = typing.Union[math_helpers.SE2Pose, math_helpers.SE3Pose, Pose2D, Pose3D]
+Any2DPose = typing.Union[math_helpers.SE2Pose, Pose2D]
+Any3DPose = typing.Union[math_helpers.SE3Pose, Pose3D]
+
+
+def transform_pose(*inputs: AnyPose) -> AnyPose | list[AnyPose]:
+    outputs = []
+    for _input in inputs:
+        if isinstance(_input, math_helpers.SE2Pose):
+            outputs.append(Pose2D.from_bosdyn_pose(_input))
+        if isinstance(_input, math_helpers.SE3Pose):
+            outputs.append(Pose3D.from_bosdyn_pose(_input))
+        if isinstance(_input, (Pose2D, Pose3D)):
+            outputs.append(_input.as_pose())
+    if len(outputs) == 1:
+        return outputs[0]
+    else:
+        return outputs
 
 
 class FrameTransformer:
@@ -60,19 +78,27 @@ class FrameTransformer:
         self,
         start_frame: str,
         end_frame: str,
-        start_pose: math_helpers.SE2Pose | math_helpers.SE3Pose,
-    ):
+        start_pose: AnyPose,
+        in_common_pose: bool = False,
+    ) -> AnyPose:
         """
         Basic transformation of a pose between two frames. Equivalent to end_tform_start
         :param start_frame: frame in which original pose is specified
         :param end_frame: frame to transform to
         :param start_pose: pose to transform (in start_frame)
+        :param in_common_pose: whether inputs / outputs are given in Pose2D or Pose3D
         :return: pose in end_frame
         """
+        if in_common_pose:
+            start_pose = transform_pose(start_pose)
+
         end_tform_start = self.end_tform_start(start_frame, end_frame)
         if isinstance(start_pose, math_helpers.SE2Pose):
             end_tform_start = end_tform_start.get_closest_se2_transform()
         end_pose = end_tform_start * start_pose
+
+        if in_common_pose:
+            end_pose = transform_pose(end_pose)
         return end_pose
 
     def transform_wrench(
@@ -191,18 +217,35 @@ class FrameTransformer:
         return end_tform_start
 
     def get_current_body_position_in_frame(
-        self, end_frame: str
-    ) -> math_helpers.SE2Pose:
+        self,
+        end_frame: str,
+        in_common_pose: bool = False,
+    ) -> Any2DPose:
         """
         Return current position of the robot in whatever frame was specified.
         :param end_frame: frame relative to which the pose should be returned
+        :param in_common_pose: whether returned pose should be Pose2D / Pose3D
         """
         flat_body_center = math_helpers.SE2Pose(x=0, y=0, angle=0)
-        return self.transform(
+        pose = self.transform(
             start_frame=BODY_FRAME_NAME,
             end_frame=end_frame,
             start_pose=flat_body_center,
         )
+        if in_common_pose:
+            return Pose2D.from_bosdyn_pose(pose)
+        else:
+            return pose
+
+    def get_hand_position_in_frame(
+        self, end_frame: str, in_common_pose: bool = False
+    ) -> Any3DPose:
+        """
+        Return current position of the hand in whatever frame was specified.
+        :param end_frame: frame relative to which the pose should be returned
+        :param in_common_pose: whether returned pose should be Pose2D / Pose3D
+        """
+        return self.transform("hand", end_frame, Pose3D(), in_common_pose)
 
 
 ########################################################################################################################

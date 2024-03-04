@@ -180,15 +180,21 @@ def positional_grab(
     set_gripper(False)
 
 
-def pulling(
+def pull(
     pose: Pose3D,
     start_distance: float,
     mid_distance: float,
     end_distance: float,
     frame_name: str,
+    stiffness_diag_in: list[int] | None = None,
+    damping_diag_in: list[float] | None = None,
+    stiffness_diag_out: list[int] | None = None,
+    damping_diag_out: list[float] | None = None,
+    forces: list[float] | None = None,
     release_after: bool = True,
-    sleep: bool = False,
-) -> (Pose3D, Pose3D, Pose3D):
+    follow_arm: bool = False,
+    timeout: float = 6.0,
+) -> (Pose3D, Pose3D):
     """
     Executes a pulling motion (e.g. for drawers)
     :param pose: pose of knob in 3D space
@@ -199,55 +205,103 @@ def pulling(
     :param release_after: release the knob after pulling motion
     :param sleep: whether to sleep in between motions for safety
     """
-    static_params = {
-        "pose": pose,
-        "frame_name": frame_name,
-    }
-    sleep_multiplier = 1 if sleep else 0
+    assert len(stiffness_diag_in) == 6
+    if stiffness_diag_in is None:
+        stiffness_diag_in = [200, 500, 500, 60, 60, 60]
+    assert len(damping_diag_in) == 6
+    if damping_diag_in is None:
+        damping_diag_in = [2.5, 2.5, 2.5, 1.0, 1.0, 1.0]
+    assert len(stiffness_diag_out) == 6
+    if stiffness_diag_out is None:
+        stiffness_diag_out = [100, 0, 0, 60, 60, 60]
+    assert len(damping_diag_out) == 6
+    if damping_diag_out is None:
+        damping_diag_out = [2.5, 2.5, 2.5, 1.0, 1.0, 1.0]
+    assert len(forces) == 6
+    if forces is None:
+        forces = [0, 0, 0, 0, 0, 0]
 
-    start_pose = move_arm_distanced(distance=start_distance, **static_params)
+    keywords_in = {
+        "stiffness_diag": stiffness_diag_in,
+        "damping_diag": damping_diag_in,
+        "forces": forces,
+        "timeout": timeout,
+    }
+    keywords_out = {
+        "stiffness_diag": stiffness_diag_out,
+        "damping_diag": damping_diag_out,
+        "forces": forces,
+        "timeout": timeout,
+    }
+
+    move_arm_distanced(
+        pose, start_distance, frame_name, follow_arm=False
+    )  # before handle
     set_gripper(True)
-    time.sleep(sleep_multiplier * 2)
-    mid_pose = move_arm_distanced(distance=mid_distance, **static_params)
-    time.sleep(sleep_multiplier * 2)
-    set_gripper(False)
-    time.sleep(sleep_multiplier * 2)
-    end_pose = move_arm_distanced(distance=end_distance, **static_params)
+    move_arm_distanced(
+        pose, mid_distance, frame_name, follow_arm=follow_arm, **keywords_in
+    )  # moving in
+    set_gripper(False)  # grab
+    pull_start = frame_transformer.get_hand_position_in_frame(
+        frame_name, in_common_pose=True
+    )
+    move_arm_distanced(
+        pose, end_distance, frame_name, follow_arm=follow_arm, **keywords_out
+    )  # pulling
+    pull_end = frame_transformer.get_hand_position_in_frame(
+        frame_name, in_common_pose=True
+    )
 
     if release_after:
         set_gripper(True)
-        move_arm_distanced(distance=end_distance + 0.05, **static_params)
+        move_arm_distanced(pull_end, start_distance, frame_name, follow_arm=follow_arm)
 
-    return start_pose, mid_pose, end_pose
+    return pull_start, pull_end
 
 
-def pushing(
-    pose: Pose3D,
+def push(
+    start_pose: Pose3D,
+    end_pose: Pose3D,
     start_distance: float,
     end_distance: float,
     frame_name: str,
-    sleep: bool = False,
-) -> None:
+    stiffness_diag: list[int] | None = None,
+    damping_diag: list[float] | None = None,
+    forces: list[float] | None = None,
+    follow_arm: bool = False,
+    timeout: float = 6.0,
+) -> (Pose3D, Pose3D):
     """
-    Executes a pulling motion (e.g. for drawers)
+    Executes a pushing motion (e.g. for drawers)
     :param pose: pose of knob in 3D space
     :param start_distance: how far from the button to start push
     :param end_distance: how far to push
     :param frame_name:
     :param sleep: whether to sleep in between motions for safety
     """
-    static_params = {
-        "pose": pose,
-        "frame_name": frame_name,
-    }
-    sleep_multiplier = 1 if sleep else 0
+    assert len(stiffness_diag) == 6
+    if stiffness_diag is None:
+        stiffness_diag = [200, 500, 500, 60, 60, 60]
+    assert len(damping_diag) == 6
+    if damping_diag is None:
+        damping_diag = [2.5, 2.5, 2.5, 1.0, 1.0, 1.0]
+    assert len(forces) == 6
+    if forces is None:
+        forces = [0, 0, 0, 0, 0, 0]
 
-    set_gripper(False)
-    move_arm_distanced(distance=start_distance, **static_params)
-    time.sleep(sleep_multiplier * 1)
-    move_arm_distanced(distance=end_distance, **static_params)
-    time.sleep(sleep_multiplier * 1)
-    move_arm_distanced(distance=start_distance, **static_params)
+    keywords = {
+        "stiffness_diag": stiffness_diag,
+        "damping_diag": damping_diag,
+        "forces": forces,
+        "follow_arm": follow_arm,
+        "timeout": timeout,
+    }
+
+    move_arm_distanced(
+        start_pose, start_distance, frame_name, follow_arm=follow_arm
+    )  # before handle
+    set_gripper(False)  # fist
+    move_arm_distanced(end_pose, end_distance, frame_name, **keywords)  # pushing
 
 
 def collect_dynamic_point_cloud(

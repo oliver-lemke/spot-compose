@@ -8,6 +8,7 @@ import numpy as np
 
 import cv2
 import open3d as o3d
+from utils.importer import PointCloud, Vector3dVector
 
 
 def normalize_image(image: np.ndarray) -> np.ndarray:
@@ -58,3 +59,11 @@ def show_two_geometries_colored(
     geometry1_colored.paint_uniform_color(color1)
     geometry2_colored.paint_uniform_color(color2)
     o3d.visualization.draw_geometries([geometry1_colored, geometry2_colored])
+
+
+def show_point_cloud_in_out(points: np.ndarray, in_mask: np.ndarray) -> None:
+    pcd = PointCloud()
+    pcd.points = Vector3dVector(points)
+    pcd_in = pcd.select_by_index(np.where(in_mask)[0])
+    pcd_out = pcd.select_by_index(np.where(~in_mask)[0])
+    show_two_geometries_colored(pcd_out, pcd_in)

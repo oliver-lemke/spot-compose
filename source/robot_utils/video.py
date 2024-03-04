@@ -38,6 +38,7 @@ from scipy import ndimage
 from scipy.interpolate import griddata
 from utils import vis
 from utils.coordinates import Pose3D
+from utils.drawer_detection import BBox
 from utils.importer import PointCloud, Vector3dVector
 from utils.point_clouds import icp
 from utils.recursive_config import Config
@@ -322,10 +323,13 @@ def get_all_images_greyscale() -> list[(np.ndarray, image_pb2.ImageResponse)]:
     )
 
 
-def intrinsics_from_ImageSource(image_source: ImageSource) -> np.ndarray:
+def intrinsics_from_ImageSource(
+    image_source: ImageSource, correct: bool = True
+) -> np.ndarray:
     """
     Extract camera intrinsics from Image.source
     :param image_source: Image.source
+    :param correct: TODO
     :return: (3, 3) np array of the camera intrinsics
     """
     cam_ints = image_source.pinhole.intrinsics
@@ -334,7 +338,7 @@ def intrinsics_from_ImageSource(image_source: ImageSource) -> np.ndarray:
     f, c = cam_ints.focal_length, cam_ints.principal_point
     return np.asarray(
         [
-            [f.x, 0, c.x],
+            [f.x, 0, 203 if correct else c.x],
             [0, f.y, c.y],
             [0, 0, 1],
         ]
@@ -391,6 +395,10 @@ def build_surrounding_point_cloud() -> PointCloud:
     return pcd_body
 
 
+class NoFiducialDetectedError(Exception):
+    pass
+
+
 def localize_from_images(config: Config, vis_block: bool = False) -> str:
     """
     Localize the robot from camera images and depth scans of the surrounding environment.
@@ -433,6 +441,9 @@ def localize_from_images(config: Config, vis_block: bool = False) -> str:
                 best_fit = detection.decision_margin
                 best_frame_idx = frame_idx
                 best_detection = detection
+
+    if best_detection is None:
+        raise NoFiducialDetectedError()
 
     # use that image to compute the current pose relative to it (body_tform_fiducial)
     _, best_response = image_tuples[best_frame_idx]
@@ -497,7 +508,9 @@ def localize_from_images(config: Config, vis_block: bool = False) -> str:
         show_two_geometries_colored(pcd_fiducial, pcd_ground)
 
     # get offset between prediction and ground truth
-    ground_tform_fiducial = icp(pcd_ground, pcd_fiducial, threshold=0.1)
+    ground_tform_fiducial = icp(
+        pcd_ground, pcd_fiducial, threshold=0.05, max_iteration=200
+    )
     ground_tform_body = ground_tform_fiducial @ fiducial_tform_body
 
     if vis_block:
@@ -574,7 +587,7 @@ def relocalize(
 
 def point_cloud_from_camera_captures(
     depth_images: list[(np.ndarray, image_pb2.ImageResponse)],
-    frame_relative_to: BODY_FRAME_NAME,
+    frame_relative_to: str = BODY_FRAME_NAME,
 ) -> PointCloud:
     """
     Given a list of (depth_image, ImageResponse), compute the combined point cloud relative to the specified frame.
@@ -599,18 +612,18 @@ def point_cloud_from_camera_captures(
 def frame_coordinate_from_depth_image(
     depth_image: np.ndarray,
     depth_image_response: ImageResponse,
-    pixel_coordinates: np.ndarray,
+    pixel_coordinatess: np.ndarray,
     frame_name: str,
 ) -> np.ndarray:
     """
     Compute a 3D coordinate from a depth image and pixel coordinate.
     :param depth_image: depth image, shape (H, W, 1)
     :param depth_image_response: associated ImageResponse
-    :param pixel_coordinates: coordinates of the pixel to get the 3D coordinate of (format: height, width)
+    :param pixel_coordinatess: coordinates of the pixel to get the 3D coordinate of (format: height, width)
     :param frame_name: frame relative to which to express the 3D coordinate
     """
-    assert pixel_coordinates.ndim == 2 and pixel_coordinates.shape[-1] == 2
-    pixel_coordinates_flipped = np.flip(pixel_coordinates, axis=-1)
+    assert pixel_coordinatess.ndim == 2 and pixel_coordinatess.shape[-1] == 2
+    pixel_coordinates_flipped = np.flip(pixel_coordinatess, axis=-1)
 
     # Get the valid depth measurements
     depth_image = depth_image.squeeze()
@@ -620,23 +633,116 @@ def frame_coordinate_from_depth_image(
         valid_coords, valid_depths, pixel_coordinates_flipped, method="cubic"
     )
     target_depth = target_depth / depth_image_response.source.depth_scale
-    print(target_depth)
+    print(f"{target_depth=}")
 
     # prepare intrinsics, extrinsics
     intrinsics = intrinsics_from_ImageSource(depth_image_response.source)
-    camera_tform_odom = camera_pose_from_ImageCapture(depth_image_response.shot)
+    camera_tform_odom = camera_pose_from_ImageCapture(
+        depth_image_response.shot, ODOM_FRAME_NAME
+    )
     odom_tform_camera = camera_tform_odom.inverse(inplace=False).as_matrix()
     frame_tform_odom = frame_transformer.transform_matrix(ODOM_FRAME_NAME, frame_name)
     frame_tform_camera = frame_tform_odom @ odom_tform_camera
 
     # calculate the 3d coordinates in the camera frame
-    ones = np.ones((pixel_coordinates.shape[0], 1))
-    pixel_coords_hom = np.concatenate((pixel_coordinates, ones), axis=1)
+    ones = np.ones((pixel_coordinatess.shape[0], 1))
+    pixel_coords_hom = np.concatenate((pixel_coordinatess, ones), axis=1)
     coords_camera_on_plane = pixel_coords_hom @ np.linalg.inv(intrinsics).T
-    coords_camera_norm = coords_camera_on_plane / coords_camera_on_plane[:, -1]
-    coords_camera = coords_camera_norm * target_depth
+    coords_camera_norm = (
+        coords_camera_on_plane / coords_camera_on_plane[:, -1, np.newaxis]
+    )
+    coords_camera = coords_camera_norm * target_depth[:, np.newaxis]
 
     coords_camera_hom = np.concatenate((coords_camera, ones.copy()), axis=1)
     coords_frame = coords_camera_hom @ frame_tform_camera.T
-    coords_frame_norm = coords_frame[:, :-1] / coords_frame[:, -1]
+    coords_frame_norm = coords_frame[:, :-1] / coords_frame[:, -1, np.newaxis]
     return coords_frame_norm
+
+
+def project_3D_to_2D(
+    depth_image_response: (np.ndarray, ImageResponse),
+    coordinates_in_frame: np.ndarray,
+    frame_name: str,
+) -> np.ndarray:
+    depth_image, depth_response = depth_image_response
+    camera_tform_body = camera_pose_from_ImageCapture(
+        depth_response.shot, BODY_FRAME_NAME
+    ).as_matrix()
+    if frame_name is None:
+        frame_tform_body = camera_tform_body.copy()
+    else:
+        frame_tform_body = frame_transformer.transform_matrix(
+            BODY_FRAME_NAME, frame_name
+        )
+    body_tform_frame = np.linalg.inv(frame_tform_body)
+    camera_tform_frame = camera_tform_body @ body_tform_frame
+    intrinsics = intrinsics_from_ImageSource(depth_response.source)
+
+    # transform point cloud into camera frame
+    ones = np.ones((coordinates_in_frame.shape[0], 1))
+    pcd_frame_hom = np.concatenate((coordinates_in_frame, ones), axis=1)
+    pcd_camera_hom = pcd_frame_hom @ camera_tform_frame.T
+    pcd_camera = pcd_camera_hom[..., :3] / pcd_camera_hom[..., -1, np.newaxis]
+    pcd_2d_hom = pcd_camera @ intrinsics.T
+    pcd_2d = pcd_2d_hom[:, :2] / pcd_2d_hom[:, -1, np.newaxis]
+    return pcd_2d
+
+
+def select_points_from_bounding_box(
+    depth_image_response: (np.ndarray, ImageResponse),
+    bboxes: list[BBox],
+    frame_name: str,
+    vis_block: bool = False,
+) -> (np.ndarray, np.ndarray):
+    """
+    Given a depth response, and a couple bounding boxes, compute (1) the point cloud in the given frame_name, and return
+    (2) masks that select the points within each bounding box
+    """
+    # get necessary prerequisites
+    depth_image, depth_response = depth_image_response
+    pcd_body = point_cloud_from_camera_captures([depth_image_response])
+    pcd_body = np.array(pcd_body.points)
+    camera_tform_body = camera_pose_from_ImageCapture(
+        depth_response.shot, BODY_FRAME_NAME
+    ).as_matrix()
+    if frame_name is None:
+        frame_tform_body = camera_tform_body.copy()
+    else:
+        frame_tform_body = frame_transformer.transform_matrix(
+            BODY_FRAME_NAME, frame_name
+        )
+    intrinsics = intrinsics_from_ImageSource(depth_response.source)
+
+    # transform point cloud into camera frame
+    ones = np.ones((pcd_body.shape[0], 1))
+    pcd_body_hom = np.concatenate((pcd_body, ones), axis=1)
+    pcd_camera_hom = pcd_body_hom @ camera_tform_body.T
+    pcd_camera = pcd_camera_hom[..., :3] / pcd_camera_hom[..., -1, np.newaxis]
+    pcd_2d_hom = pcd_camera @ intrinsics.T
+    pcd_2d = pcd_2d_hom[:, :2] / pcd_2d_hom[:, -1, np.newaxis]
+
+    # get masks for all bounding boxes
+    bbox_masks = []
+    for bbox in bboxes:
+        xmin, ymin, xmax, ymax = [int(val) for val in bbox]
+        x_mask = (xmin <= pcd_2d[:, 0]) & (pcd_2d[:, 0] <= xmax)
+        y_mask = (ymin <= pcd_2d[:, 1]) & (pcd_2d[:, 1] <= ymax)
+        mask = x_mask & y_mask
+        bbox_masks.append(mask)
+    bbox_masks_np = np.stack(bbox_masks, axis=0)
+
+    # transform points into reference frame
+    pcd_frame_hom = pcd_body_hom @ frame_tform_body.T
+    pcd_frame = pcd_frame_hom[..., :3] / pcd_frame_hom[..., -1, np.newaxis]
+
+    if vis_block:
+        pcd_vis = PointCloud()
+        pcd_vis.points = Vector3dVector(pcd_frame)
+        for bbox_mask in bbox_masks_np:
+            pcd_in = pcd_vis.select_by_index(np.where(bbox_mask)[0])
+            pcd_out = pcd_vis.select_by_index(np.where(~bbox_mask)[0])
+            pcd_in.paint_uniform_color([0, 1, 0])
+            pcd_out.paint_uniform_color([1, 0, 0])
+            o3d.visualization.draw_geometries([pcd_in, pcd_out])
+
+    return pcd_frame, bbox_masks_np

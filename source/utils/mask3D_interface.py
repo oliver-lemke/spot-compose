@@ -4,6 +4,7 @@ Util functions for segmenting point clouds with Mask3D.
 
 from __future__ import annotations
 
+import colorsys
 import os.path
 
 import numpy as np
@@ -82,7 +83,55 @@ def get_coordinates_from_item(
     return item_cloud, environment_cloud
 
 
-def test() -> None:
+def generate_distinct_colors(n: int) -> list[tuple[int, int, int]]:
+    """
+    Generate n visually distinct RGB colors.
+
+    Args:
+    - n (int): The number of distinct colors to generate.
+
+    Returns:
+    - List[Tuple[int, int, int]]: A list of tuples representing RGB colors.
+    """
+    colors = []
+    for i in range(n):
+        # Divide the hue space into equal parts
+        hue = i / n
+        # Fixed saturation and lightness for high contrast and brightness
+        saturation = 0.7
+        lightness = 0.5
+        # Convert HSL color to RGB
+        r, g, b = colorsys.hls_to_rgb(hue, lightness, saturation)
+        colors.append((r, g, b))
+
+    return colors
+
+
+def get_all_item_point_clouds(
+    folder_path: str | bytes,
+    point_cloud_path: str | bytes,
+) -> list[PointCloud]:
+    """
+    TODO
+    """
+    df = _get_list_of_items(str(folder_path))
+    pcd = o3d.io.read_point_cloud(point_cloud_path)
+    colors = generate_distinct_colors(len(df))
+
+    pcds = []
+    for row in df.iterrows():
+        idx, (path_ending, class_label, confidence) = row
+        mask_file_path = os.path.join(folder_path, path_ending)
+        with open(mask_file_path, "r", encoding="UTF-8") as file:
+            lines = file.readlines()
+        good_points_bool = np.asarray([bool(int(line)) for line in lines])
+        current_pcd = pcd.select_by_index(np.where(good_points_bool)[0])
+        current_pcd.paint_uniform_color(colors[idx])
+        pcds.append(current_pcd)
+    return pcds
+
+
+def _test() -> None:
     config = recursive_config.Config()
 
     mask_path = config.get_subpath("masks")
@@ -91,11 +140,12 @@ def test() -> None:
 
     pc_path = config.get_subpath("aligned_point_clouds")
     ending = config["pre_scanned_graphs"]["high_res"]
-    pc_path = os.path.join(str(pc_path), f"{ending}.ply")
+    pc_path = os.path.join(str(pc_path), ending, "scene.ply")
 
-    res = get_coordinates_from_item("backpack", mask_path, pc_path)
+    res = get_all_item_point_clouds(mask_path, pc_path)
+    o3d.visualization.draw_geometries(res)
     print(res)
 
 
 if __name__ == "__main__":
-    test()
+    _test()

@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 
 from bosdyn.client import Sdk
-from robot_utils.advanced_movement import pushing
+from robot_utils.advanced_movement import push
 from robot_utils.base import ControlFunction, take_control_with_function
 from robot_utils.basic_movements import carry_arm, move_body, stow_arm
 from robot_utils.frame_transformer import FrameTransformerSingleton
@@ -70,7 +70,7 @@ class _Push_Wall(ControlFunction):
         ###############################################################################
 
         carry_arm(True)
-        pushing(button_pose, *PUSH_DISTANCES, **static_params)
+        push(button_pose, *PUSH_DISTANCES, **static_params)
         stow_arm()
         return frame_name
 

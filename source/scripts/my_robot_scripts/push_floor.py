@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 
 from bosdyn.client import Sdk
-from robot_utils.advanced_movement import move_body_distanced, pushing
+from robot_utils.advanced_movement import move_body_distanced, push
 from robot_utils.base import ControlFunction, take_control_with_function
 from robot_utils.basic_movements import carry_arm, stow_arm
 from robot_utils.frame_transformer import FrameTransformerSingleton
@@ -72,7 +72,7 @@ class _Push_Floor(ControlFunction):
         ###############################################################################
 
         carry_arm(True)
-        pushing(button_pose, *PUSH_DISTANCES, frame_name=frame_name)
+        push(button_pose, *PUSH_DISTANCES, frame_name=frame_name)
         stow_arm()
         return frame_name
 

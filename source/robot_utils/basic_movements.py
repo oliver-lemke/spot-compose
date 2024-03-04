@@ -135,10 +135,11 @@ def carry_arm(body_assist: bool = False) -> None:
     block_until_arm_arrives(robot_command_client, carry_command_id, 3.0)
 
 
-def stow_arm() -> None:
+def stow_arm(gripper_open: bool = False) -> None:
     """
     Put the arm in stowed position.
     """
+    set_gripper(gripper_open)
     # Stow the arm
     # Build the stow command using RobotCommandBuilder
     stow = RobotCommandBuilder.arm_stow_command()
@@ -260,6 +261,7 @@ def move_arm(
     unstow: bool = False,
     stow: bool = False,
     body_assist: bool = False,
+    follow_arm: bool = False,
     keep_static_after_moving: bool = False,
     stiffness_diag: list[int] | None = None,
     damping_diag: list[float] | None = None,
@@ -274,6 +276,7 @@ def move_arm(
     :param unstow: whether to unstow the arm before use
     :param stow: whether to stow the arm after use
     :param body_assist: whether to use body assist when grabbing
+    :param follow_arm: whether to follow arm
     :param keep_static_after_moving: if true, the robot will try to keep the arm at
     static position when moving, otherwise the arm will move with the robot
     :param stiffness_diag: diagonal stiffness matrix for impedance
@@ -313,7 +316,11 @@ def move_arm(
     if gripper_open is not None:
         set_gripper(gripper_open)
 
-    robot_cmd = RobotCommandBuilder.build_synchro_command(stand_command, arm_command)
+    commands = [stand_command, arm_command]
+    if follow_arm:
+        follow_arm_command = RobotCommandBuilder.follow_arm_command()
+        commands.append(follow_arm_command)
+    robot_cmd = RobotCommandBuilder.build_synchro_command(*commands)
 
     # Send the request
     cmd_id = robot_command_client.robot_command(robot_cmd)
@@ -347,11 +354,29 @@ def move_arm_distanced(
     return result_pos
 
 
+def gaze(target: Pose3D, frame_name: str, gripper_open: bool = True):
+    """
+    Gaze at target position relative to specified frame_name
+    """
+    root_frame = VISION_FRAME_NAME
+    target_in_vision = frame_transformer.transform(
+        frame_name, root_frame, target.as_pose()
+    )
+    gaze_command = RobotCommandBuilder.arm_gaze_command(
+        target_in_vision.x, target_in_vision.y, target_in_vision.z, root_frame
+    )
+    synchro_command = RobotCommandBuilder.build_synchro_command(gaze_command)
+    gaze_command_id = robot_command_client.robot_command(synchro_command)
+    block_until_arm_arrives(robot_command_client, gaze_command_id, 4.0)
+    set_gripper(gripper_open)
+
+
 def roll_over():
     """
     Roll the robot into battery swap position.
     """
     command = RobotCommandBuilder.battery_change_pose_command()
+    command = RobotCommandBuilder.build_synchro_command(command)
     robot_command_client.robot_command(command)
 
 
