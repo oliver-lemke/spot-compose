@@ -269,7 +269,7 @@ def main() -> None:
     scan_ground = mesh_ground.sample_points_poisson_disk(
         number_of_points=200_000, use_triangle_normal=True
     )
-    o3d.visualization.draw_geometries([mesh_ground])
+    # o3d.visualization.draw_geometries([mesh_ground])
 
     autowalk_ply_path = config.get_subpath("point_clouds")
     autowalk_ply_path = os.path.join(
