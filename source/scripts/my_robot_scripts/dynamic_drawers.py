@@ -1,7 +1,6 @@
 # pylint: disable-all
 from __future__ import annotations
 
-import os
 import warnings
 from collections import defaultdict
 
@@ -21,12 +20,12 @@ from robot_utils.video import (
     select_points_from_bounding_box,
 )
 from sklearn.cluster import DBSCAN
-from utils import recursive_config, vis
+from utils import recursive_config
 from utils.camera_geometry import plane_fitting_open3d
 from utils.coordinates import Pose2D, Pose3D, average_pose3Ds, pose_distanced
 from utils.drawer_detection import BBox, Detection, Match, drawer_handle_matches
 from utils.drawer_detection import predict_yolodrawer as drawer_predict
-from utils.mask3D_interface import get_coordinates_from_item
+from utils.openmask_interface import get_mask_points
 from utils.point_clouds import body_planning_mult_furthest
 from utils.recursive_config import Config
 from utils.singletons import (
@@ -253,26 +252,13 @@ class _DynamicDrawers(ControlFunction):
         **kwargs,
     ) -> str:
         STAND_DISTANCE = 1.1
-        # BODY_POSES = [(1.2, 0), (2, -0.5), (2, -1.5)]
-        START_ANGLE = 180 + 0
         STIFFNESS_DIAG1 = [200, 500, 500, 60, 60, 60]
         STIFFNESS_DIAG2 = [100, 0, 0, 60, 30, 30]
         DAMPING_DIAG = [2.5, 2.5, 2.5, 1.0, 1.0, 1.0]
         FORCES = [0, 0, 0, 0, 0, 0]
 
         config = recursive_config.Config()
-
-        mask_path = config.get_subpath("masks")
-        ending = config["pre_scanned_graphs"]["masked"]
-        mask_path = os.path.join(mask_path, ending)
-
-        pcd_path = config.get_subpath("aligned_point_clouds")
-        ending = config["pre_scanned_graphs"]["high_res"]
-        pcd_path = os.path.join(str(pcd_path), ending, "scene.ply")
-
-        cabinet_pcd, env_pcd = get_coordinates_from_item(
-            "cabinet", mask_path, pcd_path, index=2
-        )
+        cabinet_pcd, env_pcd = get_mask_points("cabinet", config, idx=2, vis_block=True)
         cabinet_center = np.mean(np.asarray(cabinet_pcd.points), axis=0)
         cabinet_pose = Pose3D(cabinet_center)
         print(f"{cabinet_pose=}")
