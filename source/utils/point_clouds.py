@@ -223,6 +223,153 @@ def body_planning(
     return poses
 
 
+def iterative_furthest_point_sampling(
+    points: np.ndarray, num_samples: int
+) -> np.ndarray:
+    """
+    Perform iterative furthest point sampling on a set of 3D points.
+
+    Parameters:
+    - points (np.ndarray): The input points, a (N, 3) array.
+    - num_samples (int): The number of points to sample.
+
+    Returns:
+    - np.ndarray: The sampled points, a (num_samples, 3) array.
+    """
+    # Ensure num_samples does not exceed the number of points
+    num_samples = min(num_samples, len(points))
+
+    # Initialize the list of sampled indices with a random index
+    sampled_indices = [np.random.randint(len(points))]
+    distances = np.full(len(points), np.inf)
+
+    for _ in range(1, num_samples):
+        # Update distances based on the latest addition
+        last_sampled_point = points[sampled_indices[-1]]
+        new_distances = np.linalg.norm(points - last_sampled_point, axis=1)
+        distances = np.minimum(distances, new_distances)
+
+        # Select the point with the maximum distance
+        next_index = np.argmax(distances)
+        sampled_indices.append(next_index)
+
+    # Extract the sampled points using the indices
+    sampled_points = points[sampled_indices]
+
+    return sampled_points
+
+
+def body_planning_mult_furthest(
+    env_cloud: PointCloud,
+    target: Pose3D,
+    floor_height_thresh: float = -0.1,
+    body_height: float = 0.45,
+    min_target_distance: float = 0.75,
+    max_target_distance: float = 1,
+    min_obstacle_distance: float = 0.5,
+    n: int = 4,
+    vis_block: bool = False,
+) -> list[Pose3D]:
+    """
+    Plans a position for the robot to go to given a cloud *without* the item to be
+    grasped, as well as point to be grasped.
+    :param env_cloud: the point cloud *without* the item
+    :param target: target coordinates for grasping
+    :param floor_height_thresh: z value under which to cut floor
+    :param body_height: height of robot body
+    :param min_distance: minimum distance from object
+    :param max_distance: max distance from object
+    :param lam: trade-off between distance to obstacles and distance to target, higher
+    lam, more emphasis on distance to target
+    :param n_best: number of positions to return
+    :param vis_block: whether to visualize the position
+    :return: list of viable coordinates ranked by score
+    """
+    target = target.as_ndarray()
+
+    # delete floor from point cloud, so it doesn't interfere with the SDF
+    points = np.asarray(env_cloud.points)
+    min_points = np.min(points, axis=0)
+    max_points = np.max(points, axis=0)
+    points_bool = points[:, 2] > floor_height_thresh
+    index = np.where(points_bool)[0]
+    pc_no_ground = env_cloud.select_by_index(index)
+
+    # get points radiating outwards from target coordinate
+    circle_points = get_circle_points(
+        resolution=64,
+        nr_circles=3,
+        start_radius=min_target_distance,
+        end_radius=max_target_distance,
+        return_cartesian=True,
+    )
+    ## get center of radiating circle
+    target_at_body_height = target.copy()
+    target_at_body_height[-1] = body_height
+    target_at_body_height = target_at_body_height.reshape((1, 1, 3))
+    ## add the radiating circle center to the points to elevate them
+    circle_points = circle_points + target_at_body_height
+    ## filter every point that is outside the scanned scene
+    circle_points_bool = (min_points <= circle_points) & (circle_points <= max_points)
+    circle_points_bool = np.all(circle_points_bool, axis=2)
+    filtered_circle_points = circle_points[circle_points_bool]
+    filtered_circle_points = filtered_circle_points.reshape((-1, 3))
+
+    # transform point cloud to mesh to calculate SDF from
+    ball_sizes = (0.02, 0.011, 0.005)
+    ball_sizes = o3d.utility.DoubleVector(ball_sizes)
+    mesh_no_ground = o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
+        pc_no_ground, radii=ball_sizes
+    )
+    mesh_no_ground_legacy = o3d.t.geometry.TriangleMesh.from_legacy(mesh_no_ground)
+    scene = o3d.t.geometry.RaycastingScene()
+    scene.add_triangles(mesh_no_ground_legacy)
+
+    # of the filtered points, cast ray from target to point to see if there are
+    # collisions
+    ray_directions = filtered_circle_points - target
+    rays_starts = np.tile(target, (ray_directions.shape[0], 1))
+    rays = np.concatenate([rays_starts, ray_directions], axis=1)
+    rays_tensor = o3d.core.Tensor(rays, dtype=o3d.core.Dtype.Float32)
+    response = scene.cast_rays(rays_tensor)
+    direct_connection_bool = response["t_hit"].numpy() > 3
+    filtered_circle_points = filtered_circle_points[direct_connection_bool]
+    circle_tensors = o3d.core.Tensor(
+        filtered_circle_points, dtype=o3d.core.Dtype.Float32
+    )
+
+    # calculate the best body positions
+    ## calculate SDF distances
+    distances = scene.compute_signed_distance(circle_tensors).numpy()
+    valid_points = circle_tensors[distances > min_obstacle_distance]
+    selected_coordinates = iterative_furthest_point_sampling(
+        valid_points.numpy(), num_samples=n
+    )
+
+    if vis_block:
+        # draw the entries in the cloud
+        x = o3d.geometry.TriangleMesh.create_sphere(radius=0.1)
+        x.translate(target.reshape(3, 1))
+        x.paint_uniform_color((1, 0, 0))
+        y = copy.deepcopy(env_cloud)
+        y = add_coordinate_system(y, (1, 0, 0), (0, 0, 0))
+        drawable_geometries = [x, y]
+        for idx, coordinate in enumerate(selected_coordinates, 1):
+            sphere = o3d.geometry.TriangleMesh.create_sphere(radius=0.05)
+            sphere.translate(coordinate)
+            color = np.asarray([0, 1, 0]) * (idx / (2 * n) + 0.5)
+            sphere.paint_uniform_color(color)
+            drawable_geometries.append(sphere)
+        o3d.visualization.draw_geometries(drawable_geometries)
+
+    poses = []
+    for coord in selected_coordinates:
+        pose = Pose3D(coord)
+        pose.set_rot_from_direction(target - coord)
+        poses.append(pose)
+    return poses
+
+
 def get_radius_env_cloud(
     item_cloud: PointCloud, env_cloud: PointCloud, radius: float
 ) -> PointCloud:

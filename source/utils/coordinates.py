@@ -464,6 +464,20 @@ class Pose3D(Pose):
         return pose
 
 
+def average_pose3Ds(poses: list[Pose3D]) -> Pose3D:
+    coordinates = np.stack([pose.coordinates for pose in poses], axis=0)
+    rot_matrices = [pose.rot_matrix for pose in poses]
+
+    avg_coordinate = np.mean(coordinates, axis=0)
+    sum_matrix = sum(rot_matrices)
+    # Apply SVD
+    U, _, VT = np.linalg.svd(sum_matrix, full_matrices=True)
+    # Reconstruct the average rotation matrix
+    avg_rot_matrix = np.dot(U, VT)
+
+    return Pose3D(avg_coordinate, avg_rot_matrix)
+
+
 def from_a_to_b_distanced(
     start_pose: Pose2D, end_pose: Pose2D, distance: float
 ) -> Pose2D:
