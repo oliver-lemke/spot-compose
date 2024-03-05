@@ -509,7 +509,7 @@ def localize_from_images(config: Config, vis_block: bool = False) -> str:
 
     # get offset between prediction and ground truth
     ground_tform_fiducial = icp(
-        pcd_ground, pcd_fiducial, threshold=0.05, max_iteration=200
+        pcd_ground, pcd_fiducial, threshold=0.05, max_iteration=100
     )
     ground_tform_body = ground_tform_fiducial @ fiducial_tform_body
 
