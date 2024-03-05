@@ -4,11 +4,17 @@ import shutil
 import zipfile
 
 import numpy as np
+import torch
 
+import clip
+import open3d as o3d
 import requests
 from urllib3.exceptions import ReadTimeoutError
 from utils import recursive_config
 from utils.docker_communication import _get_content
+from utils.recursive_config import Config
+
+MODEL, PREPROCESS = clip.load("ViT-L/14@336px", device="cpu")
 
 
 def zip_point_cloud(path: str) -> str:
@@ -26,7 +32,7 @@ def zip_point_cloud(path: str) -> str:
     return output_filename
 
 
-def main() -> None:
+def get_mask_clip_features() -> None:
     # CONSTANTS
     PORT = 5001
     SAVE_PATH = "./tmp"
@@ -60,7 +66,7 @@ def main() -> None:
         print(f"{message['error']}", f"Status code: {response.status_code}", sep="\n")
         return
 
-    per_mask_clip_features = contents["clip_features"]
+    features = contents["clip_features"]
     masks = contents["scene_MASKS"]
 
     save_path = config.get_subpath("openmask_features")
@@ -68,13 +74,75 @@ def main() -> None:
     os.makedirs(save_path, exist_ok=False)
     feature_path = os.path.join(str(save_path), "clip_features.npy")
     mask_path = os.path.join(str(save_path), "scene_MASKS.npy")
-    np.save(feature_path, per_mask_clip_features)
+    np.save(feature_path, features)
     np.save(mask_path, masks)
 
+    # make unique
+    features, feat_idx = np.unique(features, axis=0, return_index=True)
+    masks = masks[:, feat_idx]
+    masks, mask_idx = np.unique(masks, axis=1, return_index=True)
+    features = features[mask_idx]
+    feature_compressed_path = os.path.join(str(save_path), "clip_features_comp.npy")
+    mask_compressed_path = os.path.join(str(save_path), "scene_MASKS_comp.npy")
+    np.save(feature_compressed_path, features)
+    np.save(mask_compressed_path, masks)
 
-def get_mask_points(item: str, config):
-    pass
+
+def get_mask_points(item: str, config, idx: int = 0, vis_block: bool = False):
+    pcd_name = config["pre_scanned_graphs"]["high_res"]
+    base_path = config.get_subpath("openmask_features")
+    feat_path = os.path.join(base_path, pcd_name, "clip_features_comp.npy")
+    mask_path = os.path.join(base_path, pcd_name, "scene_MASKS_comp.npy")
+    pcd_path = os.path.join(
+        config.get_subpath("aligned_point_clouds"), pcd_name, "scene.ply"
+    )
+
+    features = np.load(feat_path)
+    masks = np.load(mask_path)
+
+    features, feat_idx = np.unique(features, axis=0, return_index=True)
+    masks = masks[:, feat_idx]
+    # masks, mask_idx = np.unique(masks, axis=1, return_index=True)
+    # features = features[mask_idx]
+
+    text = clip.tokenize([item]).to("cpu")
+
+    # Compute the CLIP feature vector for the specified word
+    with torch.no_grad():
+        text_features = MODEL.encode_text(text)
+
+    cos_sim = torch.nn.functional.cosine_similarity(
+        torch.Tensor(features), text_features, dim=1
+    )
+    values, indices = torch.topk(cos_sim, idx + 1)
+    most_sim_feat_idx = indices[-1].item()
+    print(f"{most_sim_feat_idx=}", f"value={values[-1].item()}")
+    # idx = 1
+    mask = masks[:, most_sim_feat_idx].astype(bool)
+
+    pcd = o3d.io.read_point_cloud(str(pcd_path))
+    pcd_in = pcd.select_by_index(np.where(mask)[0])
+    pcd_out = pcd.select_by_index(np.where(~mask)[0])
+
+    if vis_block:
+        pcd_in.paint_uniform_color([0, 1, 1])
+        o3d.visualization.draw_geometries([pcd_in, pcd_out])
+
+    return pcd_in, pcd_out
+
+
+########################################################################################
+# TESTING
+########################################################################################
+
+
+def test_():
+    item = "cabinet"
+    config = Config()
+    for i in range(10):
+        get_mask_points(item, config, idx=i, vis_block=True)
 
 
 if __name__ == "__main__":
-    main()
+    # get_mask_clip_features()
+    test_()

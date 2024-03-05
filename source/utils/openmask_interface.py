@@ -40,6 +40,7 @@ def predict_masks_and_features(
 
     zip_path = _zip_point_cloud(data_directory)
     name = os.path.basename(data_directory)
+    save_path = config.get_subpath("openmask_features")
 
     address_details = config["servers"]["openmask"]
     address = f"http://{address_details['ip']}:{address_details['port']}/{address_details['route']}"
@@ -52,7 +53,6 @@ def predict_masks_and_features(
     per_mask_clip_features = contents["clip_features"]
     masks = np.argmax(contents["scene_MASKS"], axis=1)
 
-    save_path = config.get_subpath("openmask_features")
     save_path = os.path.join(save_path, name)
     os.makedirs(save_path, exist_ok=False)
     feature_path = os.path.join(str(save_path), "clip_features.npy")
