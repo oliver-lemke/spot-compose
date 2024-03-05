@@ -256,7 +256,7 @@ def _impedance_arm_move_command(
 def move_arm(
     pose: Pose3D,
     frame_name: str,
-    timeout: int = 5,
+    timeout: int = 2,
     gripper_open: bool | float | None = None,
     unstow: bool = False,
     stow: bool = False,

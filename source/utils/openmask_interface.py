@@ -14,7 +14,6 @@ from utils import recursive_config
 from utils.docker_communication import _get_content
 from utils.recursive_config import Config
 
-print("Test")
 MODEL, PREPROCESS = clip.load("ViT-L/14@336px", device="cpu")
 
 
@@ -142,10 +141,9 @@ def visualize():
     config = Config()
     for i in range(10):
         print(i, end=", ")
-        get_mask_points(item, config, idx=i, vis_block=False)
+        get_mask_points(item, config, idx=i, vis_block=True)
 
 
 if __name__ == "__main__":
     # get_mask_clip_features()
-    print("h")
     visualize()

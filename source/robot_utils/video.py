@@ -633,7 +633,7 @@ def frame_coordinate_from_depth_image(
         valid_coords, valid_depths, pixel_coordinates_flipped, method="cubic"
     )
     target_depth = target_depth / depth_image_response.source.depth_scale
-    print(f"{target_depth=}")
+    # print(f"{target_depth=}")
 
     # prepare intrinsics, extrinsics
     intrinsics = intrinsics_from_ImageSource(depth_image_response.source)
