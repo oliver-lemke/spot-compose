@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os.path
-from collections import namedtuple
 from logging import Logger
 from typing import Optional
 
@@ -12,11 +11,9 @@ from matplotlib import pyplot as plt
 from scipy.optimize import linear_sum_assignment
 from utils.docker_communication import save_files, send_request
 from utils.files import prep_tmp_path
+from utils.object_detetion import BBox, Detection, Match
 from utils.recursive_config import Config
-
-BBox = namedtuple("BBox", ["xmin", "ymin", "xmax", "ymax"])
-Detection = namedtuple("Detection", ["name", "conf", "bbox"])
-Match = namedtuple("Match", ["drawer", "handle"])
+from utils.vis import draw_boxes
 
 COLORS = {
     "door": (0.651, 0.243, 0.957),
@@ -26,24 +23,6 @@ COLORS = {
 }
 
 CATEGORIES = {"0": "door", "1": "handle", "2": "cabinet door", "3": "refrigerator door"}
-
-
-def draw_boxes(image: np.ndarray, detections: list[Detection]) -> None:
-    plt.figure(figsize=(16, 10))
-    plt.imshow(image)
-    ax = plt.gca()
-
-    for name, conf, (xmin, ymin, xmax, ymax) in detections:
-        w, h = xmax - xmin, ymax - ymin
-        ax.add_patch(
-            plt.Rectangle(
-                (xmin, ymin), w, h, fill=False, color=COLORS[name], linewidth=6
-            )
-        )
-        text = f"{name}: {conf:0.2f}"
-        ax.text(xmin, ymin, text, fontsize=15, bbox=dict(facecolor="yellow", alpha=0.5))
-    plt.axis("off")
-    plt.show()
 
 
 def predict_yolodrawer(

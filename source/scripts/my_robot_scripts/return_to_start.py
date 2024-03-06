@@ -41,7 +41,7 @@ class _MovementFunction(ControlFunction):
 
         ft.FrameTransformer()
         if ODOM_FIRST:
-            x, y, angle_degrees = -0.3, 0, 180
+            x, y, angle_degrees = -0.9, -0.4, 160
             pose = Pose2D(np.array([x, y]))
             pose.set_rot_from_angle(angle_degrees, degrees=True)
             move_body(

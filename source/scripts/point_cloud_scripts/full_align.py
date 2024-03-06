@@ -17,7 +17,7 @@ from utils import recursive_config
 from utils.importer import PointCloud
 from utils.point_clouds import icp
 
-SAVE_OPENMASK3D = False
+SAVE_OPENMASK3D = True
 
 
 def fetch_paths(
@@ -62,9 +62,10 @@ def fetch_paths(
                     jpg_json_paths[frame_name] = {"json": file_path}
 
     mesh_path = os.path.join(str(directory_path), "export_refined.obj")
+    pcd_path = os.path.join(str(directory_path), "pcd.ply")
     assert os.path.exists(mesh_path), f"Mesh file does not exists at {mesh_path}!"
 
-    return jpg_json_paths, mesh_path
+    return jpg_json_paths, mesh_path, pcd_path
 
 
 def get_best_detection(jpg_json_paths, tag_id: int):
@@ -240,7 +241,7 @@ def main() -> None:
     directory_path = os.path.join(
         str(directory_path), config["pre_scanned_graphs"]["high_res"]
     )
-    jpg_json_paths, mesh_path = fetch_paths(directory_path)
+    jpg_json_paths, mesh_path, pcd_path = fetch_paths(directory_path)
 
     # take first image of scan_ground
     tag_id = config["pre_scanned_graphs"]["base_fiducial_id"]
@@ -266,9 +267,7 @@ def main() -> None:
 
     # get point clouds
     mesh_ground = o3d.io.read_triangle_mesh(mesh_path, True)
-    scan_ground = mesh_ground.sample_points_poisson_disk(
-        number_of_points=200_000, use_triangle_normal=True
-    )
+    scan_ground = o3d.io.read_point_cloud(pcd_path)
     # o3d.visualization.draw_geometries([mesh_ground])
 
     autowalk_ply_path = config.get_subpath("point_clouds")
@@ -276,7 +275,7 @@ def main() -> None:
         str(autowalk_ply_path), f'{config["pre_scanned_graphs"]["low_res"]}.ply'
     )
     autowalk_cloud = o3d.io.read_point_cloud(str(autowalk_ply_path))
-    # draw_point_clouds(scan_ground, autowalk_cloud)
+    draw_point_clouds(scan_ground, autowalk_cloud)
 
     scan_fiducial = copy.deepcopy(scan_ground).transform(fiducial_tform_ground)
     # scan_vis = add_coordinate_system(
@@ -284,11 +283,11 @@ def main() -> None:
     # )
     # o3d.visualization.draw_geometries([scan_vis])
 
-    # draw_point_clouds(scan_fiducial, autowalk_cloud)
+    draw_point_clouds(scan_fiducial, autowalk_cloud)
     fiducial_tform_icp = icp(scan_fiducial, autowalk_cloud, threshold=0.15)
     icp_tform_fiducial = np.linalg.inv(fiducial_tform_icp)
     scan_icp = copy.deepcopy(scan_fiducial).transform(icp_tform_fiducial)
-    # draw_point_clouds(scan_icp, autowalk_cloud)
+    draw_point_clouds(scan_icp, autowalk_cloud)
 
     # get full transformation_matrix
     icp_tform_ground = icp_tform_fiducial @ fiducial_tform_ground
@@ -334,8 +333,8 @@ def main() -> None:
         icp_tform_camera = icp_tform_ground @ ground_tform_camera
         camera_tform_icp = np.linalg.inv(icp_tform_camera)
 
-        pose_path = os.path.join(pose_save_path, f"camera_tform_icp_{frame_nr}.txt")
-        save_ndarray(pose_path, camera_tform_icp)
+        pose_path = os.path.join(pose_save_path, f"{frame_nr}.txt")
+        save_ndarray(pose_path, np.linalg.inv(camera_tform_icp))
 
         intrinsics = get_camera_intrinsics(json_path)
         intrinsic = intrinsics
@@ -354,8 +353,8 @@ def main() -> None:
             color_path = os.path.join(color_save_path, f"{frame_nr}.jpg")
             depth_path = os.path.join(depth_save_path, f"{frame_nr}.png")
 
-            cv2.imwrite(color_path, image_rgb)
-            cv2.imwrite(depth_path, depth)
+            cv2.imwrite(color_path, cv2.resize(image_rgb, (640, 480)))
+            cv2.imwrite(depth_path, cv2.resize(depth, (640, 480)))
             print(f"Save map #{frame_nr}", end="\r")
 
     # need 4x4 matrix for intrinsics for openmask

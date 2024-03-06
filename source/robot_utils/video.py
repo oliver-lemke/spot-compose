@@ -38,7 +38,7 @@ from scipy import ndimage
 from scipy.interpolate import griddata
 from utils import vis
 from utils.coordinates import Pose3D
-from utils.drawer_detection import BBox
+from utils.object_detetion import BBox
 from utils.importer import PointCloud, Vector3dVector
 from utils.point_clouds import icp
 from utils.recursive_config import Config
@@ -509,7 +509,7 @@ def localize_from_images(config: Config, vis_block: bool = False) -> str:
 
     # get offset between prediction and ground truth
     ground_tform_fiducial = icp(
-        pcd_ground, pcd_fiducial, threshold=0.05, max_iteration=200
+        pcd_ground, pcd_fiducial, threshold=0.10, max_iteration=100
     )
     ground_tform_body = ground_tform_fiducial @ fiducial_tform_body
 
@@ -633,7 +633,7 @@ def frame_coordinate_from_depth_image(
         valid_coords, valid_depths, pixel_coordinates_flipped, method="cubic"
     )
     target_depth = target_depth / depth_image_response.source.depth_scale
-    print(f"{target_depth=}")
+    # print(f"{target_depth=}")
 
     # prepare intrinsics, extrinsics
     intrinsics = intrinsics_from_ImageSource(depth_image_response.source)

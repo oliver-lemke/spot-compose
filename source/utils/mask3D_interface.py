@@ -4,7 +4,6 @@ Util functions for segmenting point clouds with Mask3D.
 
 from __future__ import annotations
 
-import colorsys
 import os.path
 
 import numpy as np
@@ -14,6 +13,7 @@ import pandas as pd
 from utils import recursive_config
 from utils.importer import PointCloud
 from utils.scannet_200_labels import CLASS_LABELS_200, VALID_CLASS_IDS_200
+from utils.vis import generate_distinct_colors
 
 
 def is_valid_label(item: str) -> bool:
@@ -81,30 +81,6 @@ def get_coordinates_from_item(
     item_cloud = pc.select_by_index(good_points_idx)
 
     return item_cloud, environment_cloud
-
-
-def generate_distinct_colors(n: int) -> list[tuple[int, int, int]]:
-    """
-    Generate n visually distinct RGB colors.
-
-    Args:
-    - n (int): The number of distinct colors to generate.
-
-    Returns:
-    - List[Tuple[int, int, int]]: A list of tuples representing RGB colors.
-    """
-    colors = []
-    for i in range(n):
-        # Divide the hue space into equal parts
-        hue = i / n
-        # Fixed saturation and lightness for high contrast and brightness
-        saturation = 0.7
-        lightness = 0.5
-        # Convert HSL color to RGB
-        r, g, b = colorsys.hls_to_rgb(hue, lightness, saturation)
-        colors.append((r, g, b))
-
-    return colors
 
 
 def get_all_item_point_clouds(

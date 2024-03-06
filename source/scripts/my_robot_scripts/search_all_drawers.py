@@ -13,19 +13,23 @@ from robot_utils.base import ControlFunction, take_control_with_function
 from robot_utils.basic_movements import carry, gaze, move_arm, move_body, stow_arm
 from robot_utils.frame_transformer import FrameTransformerSingleton
 from robot_utils.video import (
+    GRIPPER_IMAGE_COLOR,
     frame_coordinate_from_depth_image,
     get_camera_rgbd,
+    get_rgb_pictures,
     localize_from_images,
     project_3D_to_2D,
     select_points_from_bounding_box,
 )
-from sklearn.cluster import DBSCAN
+from scipy.spatial import ConvexHull
+from sklearn.cluster import DBSCAN, KMeans
 from utils import recursive_config
 from utils.camera_geometry import plane_fitting_open3d
 from utils.coordinates import Pose2D, Pose3D, average_pose3Ds, pose_distanced
 from utils.drawer_detection import drawer_handle_matches
-from utils.object_detetion import BBox, Detection, Match
 from utils.drawer_detection import predict_yolodrawer as drawer_predict
+from utils.importer import PointCloud
+from utils.object_detetion import BBox, Detection, Match
 from utils.openmask_interface import get_mask_points
 from utils.point_clouds import body_planning_mult_furthest
 from utils.recursive_config import Config
@@ -37,6 +41,7 @@ from utils.singletons import (
     RobotStateClientSingleton,
     WorldObjectClientSingleton,
 )
+from utils.zero_shot_object_detection import detect_objects
 
 frame_transformer = FrameTransformerSingleton()
 graph_nav_client = GraphNavClientSingleton()
@@ -45,6 +50,15 @@ robot_command_client = RobotCommandClientSingleton()
 robot = RobotSingleton()
 robot_state_client = RobotStateClientSingleton()
 world_object_client = WorldObjectClientSingleton()
+
+STAND_DISTANCE = 1.1
+STIFFNESS_DIAG1 = [200, 500, 500, 60, 60, 60]
+STIFFNESS_DIAG2 = [100, 0, 0, 60, 30, 30]
+DAMPING_DIAG = [2.5, 2.5, 2.5, 1.0, 1.0, 1.0]
+FORCES = [0, 0, 0, 0, 0, 0]
+CAMERA_ADD_COORDS = (-0.25, 0, 0.3)
+CAMERA_ANGLE = 55
+SPLIT_THRESH = 1.0
 
 
 def find_plane_normal_pose(
@@ -135,7 +149,6 @@ def calculate_handle_poses(
             min_samples=10,
             vis_block=False,
         )
-        print(pose)
         poses.append(pose)
 
     return poses
@@ -169,7 +182,7 @@ def refine_handle_position(
     prev_pose: Pose3D,
     depth_image_response: (np.ndarray, ImageResponse),
     frame_name: str,
-    discard_threshold: int = 100,
+    discard_threshold: int = 70,
 ) -> Pose3D:
     prev_center = prev_pose.coordinates.reshape((1, 3))
     prev_center_2D = project_3D_to_2D(depth_image_response, prev_center, frame_name)
@@ -236,12 +249,172 @@ def refine_handle_position(
         points_frame[surr_only_mask],
         center_coords,
         current_body,
-        threshold=0.01,
+        threshold=0.04,
         min_samples=10,
         vis_block=False,
     )
-    print(f"refined pose={pose}")
     return pose
+
+
+def filter_handle_poses(handle_poses: list[Pose3D]):
+    return [p for p in handle_poses if 0.3 < p.coordinates[-1] < 0.75]
+
+
+def search_drawer(
+    cabinet_poses: list[Pose3D], env_pcd: PointCloud, config: Config, frame_name: str
+) -> None:
+    gaze_and_bodies = []
+    for cabinet_pose in cabinet_poses:
+        body_poses = body_planning_mult_furthest(
+            env_pcd,
+            cabinet_pose,
+            min_target_distance=1.75,
+            max_target_distance=2.25,
+            min_obstacle_distance=0.75,
+            n=4,
+            vis_block=True,
+        )
+        gaze_and_body = [(cabinet_pose, body_pose) for body_pose in body_poses]
+        gaze_and_bodies.extend(gaze_and_body)
+
+    ###############################################################################
+    ############################### DETECT DRAWERS ################################
+    ###############################################################################
+    camera_add_pose = Pose3D(CAMERA_ADD_COORDS)
+    camera_add_pose.set_rot_from_rpy((0, CAMERA_ANGLE, 0), degrees=True)
+
+    handle_posess = []
+    for cabinet_pose, body_pose in gaze_and_bodies:
+        rotation_pose = body_pose.to_dimension(2)
+        move_body(rotation_pose, frame_name)
+
+        carry()
+        gaze(cabinet_pose, frame_name, gripper_open=True)
+        depth_response, color_response = get_camera_rgbd(
+            in_frame="image",
+            vis_block=False,
+        )
+        stow_arm()
+        predictions = drawer_predict(
+            color_response[0], config, input_format="bgr", vis_block=True
+        )
+        matches = drawer_handle_matches(predictions)
+        filtered_matches = [
+            m for m in matches if (m.handle is not None and m.drawer is not None)
+        ]
+        filtered_sorted_matches = sorted(
+            filtered_matches, key=lambda m: (m.handle.bbox.ymin, m.handle.bbox.xmin)
+        )
+        handle_poses = calculate_handle_poses(
+            filtered_sorted_matches, depth_response, frame_name
+        )
+        handle_posess.append(handle_poses)
+
+    print("all detections:", *handle_posess, sep="\n")
+    handle_poses = cluster_handle_poses(handle_posess)
+    print("clustered:", *handle_poses, sep="\n")
+    handle_poses = filter_handle_poses(handle_poses)
+    print("filtered:", *handle_poses, sep="\n")
+
+    ###############################################################################
+    ################################ ARM COMMANDS #################################
+    ###############################################################################
+    camera_add_pose_refinement = Pose3D((-0.35, -0.2, 0.2))
+    camera_add_pose_refinement.set_rot_from_rpy((0, 35, 35), degrees=True)
+
+    detection_drawer_pairs = []
+
+    carry()
+    for handle_pose in handle_poses:
+        body_pose = pose_distanced(handle_pose, STAND_DISTANCE).to_dimension(2)
+        move_body(body_pose, frame_name)
+
+        # refine
+        move_arm(handle_pose @ camera_add_pose_refinement, frame_name)
+        depth_response, color_response = get_camera_rgbd(
+            in_frame="image",
+            vis_block=False,
+        )
+        predictions = drawer_predict(
+            color_response[0], config, input_format="bgr", vis_block=True
+        )
+        handle_detections = [det for det in predictions if det.name == "handle"]
+        refined_pose = refine_handle_position(
+            handle_detections, handle_pose, depth_response, frame_name
+        )
+        print(f"{refined_pose=}")
+
+        pull_start, pull_end = pull(
+            pose=refined_pose,
+            start_distance=0.1,
+            mid_distance=-0.1,
+            end_distance=0.3,
+            frame_name=frame_name,
+            stiffness_diag_in=STIFFNESS_DIAG1,
+            damping_diag_in=DAMPING_DIAG,
+            stiffness_diag_out=STIFFNESS_DIAG2,
+            damping_diag_out=DAMPING_DIAG,
+            forces=FORCES,
+            follow_arm=False,
+            release_after=True,
+        )
+        camera_pose = refined_pose @ camera_add_pose
+        print(f"{camera_pose=}")
+        move_arm(camera_pose, frame_name=frame_name, body_assist=True)
+        imgs = get_rgb_pictures([GRIPPER_IMAGE_COLOR])
+        detections = detect_objects(imgs[0][0], ["ball", "pen"], vis_block=True)
+        print(f"{detections=}")
+        pairs = [(refined_pose, det) for det in detections]
+        detection_drawer_pairs.extend(pairs)
+        direction = pull_start.coordinates - pull_end.coordinates
+        pull_start.set_rot_from_direction(direction)
+        pull_end.set_rot_from_direction(direction)
+        push(
+            start_pose=pull_end,
+            end_pose=pull_start,
+            start_distance=0.1,
+            end_distance=-0.05,
+            frame_name=frame_name,
+            stiffness_diag=STIFFNESS_DIAG1,
+            damping_diag=DAMPING_DIAG,
+            forces=FORCES,
+            follow_arm=False,
+        )
+
+    print(f"{detection_drawer_pairs=}")
+    stow_arm()
+
+
+def calculate_projected_area(points: np.ndarray) -> float:
+    """Calculate the projected area of points on the XY plane."""
+    hull = ConvexHull(points[:, :2])  # Use only X and Y for convex hull
+    return hull.volume  # For 2D convex hulls, `volume` is the area
+
+
+def calculate_center(points: np.ndarray) -> np.ndarray:
+    """Calculate the center of a set of points."""
+    return np.mean(points, axis=0)
+
+
+def split_and_calculate_centers(
+    points: np.ndarray, threshold: float
+) -> list[np.ndarray]:
+    """Split the point cloud and calculate centers if above threshold."""
+    projected_area = calculate_projected_area(points)
+    print(f"{projected_area=}")
+    if projected_area <= threshold:
+        return [calculate_center(points)]
+    else:
+        # Calculate the number of parts to split into, rounded up
+        num_parts = int(np.ceil(projected_area / threshold))
+        kmeans = KMeans(n_clusters=num_parts)
+        labels = kmeans.fit_predict(points[:, :2])  # Fit only using X and Y
+
+        centers = []
+        for i in range(num_parts):
+            part_points = points[labels == i]
+            centers.append(calculate_center(part_points))
+        return centers
 
 
 class _DynamicDrawers(ControlFunction):
@@ -252,27 +425,8 @@ class _DynamicDrawers(ControlFunction):
         *args,
         **kwargs,
     ) -> str:
-        STAND_DISTANCE = 1.1
-        STIFFNESS_DIAG1 = [200, 500, 500, 60, 60, 60]
-        STIFFNESS_DIAG2 = [100, 0, 0, 60, 30, 30]
-        DAMPING_DIAG = [2.5, 2.5, 2.5, 1.0, 1.0, 1.0]
-        FORCES = [0, 0, 0, 0, 0, 0]
-
+        indices = (7, 2)
         config = recursive_config.Config()
-        cabinet_pcd, env_pcd = get_mask_points("cabinet", config, idx=2, vis_block=True)
-        cabinet_center = np.mean(np.asarray(cabinet_pcd.points), axis=0)
-        cabinet_pose = Pose3D(cabinet_center)
-        print(f"{cabinet_pose=}")
-
-        body_poses = body_planning_mult_furthest(
-            env_pcd,
-            cabinet_pose,
-            min_target_distance=1.75,
-            max_target_distance=2.25,
-            min_obstacle_distance=0.75,
-            n=4,
-            vis_block=True,
-        )
 
         frame_name = localize_from_images(config)
         start_pose = frame_transformer.get_current_body_position_in_frame(
@@ -280,103 +434,22 @@ class _DynamicDrawers(ControlFunction):
         )
         print(f"{start_pose=}")
 
-        ###############################################################################
-        ############################### DETECT DRAWERS ################################
-        ###############################################################################
-
-        handles_posess = []
-        for start_body in body_poses:
-            rotation_pose = start_body.to_dimension(2)
-            move_body(rotation_pose, frame_name)
-
-            carry()
-            gaze(cabinet_pose, frame_name, gripper_open=True)
-            depth_response, color_response = get_camera_rgbd(
-                in_frame="image",
-                vis_block=False,
+        for idx in indices:
+            cabinet_pcd, env_pcd = get_mask_points(
+                "cabinet", config, idx=idx, vis_block=True
             )
-            stow_arm()
-            predictions = drawer_predict(
-                color_response[0], config, input_format="bgr", vis_block=True
+            cabinet_centers = split_and_calculate_centers(
+                np.asarray(cabinet_pcd.points), threshold=SPLIT_THRESH
             )
-            matches = drawer_handle_matches(predictions)
-            filtered_matches = [
-                m for m in matches if (m.handle is not None and m.drawer is not None)
-            ]
-            filtered_sorted_matches = sorted(
-                filtered_matches, key=lambda m: (m.handle.bbox.ymin, m.handle.bbox.xmin)
-            )
-            handle_poses = calculate_handle_poses(
-                filtered_sorted_matches, depth_response, frame_name
-            )
-            handles_posess.append(handle_poses)
-
-        handle_poses = cluster_handle_poses(handles_posess)
-        ###############################################################################
-        ################################ ARM COMMANDS #################################
-        ###############################################################################
-        camera_add_pose = Pose3D((-0.35, 0, 0.2))
-        camera_add_pose.set_rot_from_rpy((0, 35, 0), degrees=True)
-
-        carry()
-        for handle_pose in handle_poses:
-            body_pose = pose_distanced(handle_pose, STAND_DISTANCE).to_dimension(2)
-            move_body(body_pose, frame_name)
-
-            # refine
-            move_arm(handle_pose @ camera_add_pose, frame_name)
-            depth_response, color_response = get_camera_rgbd(
-                in_frame="image",
-                vis_block=False,
-            )
-            predictions = drawer_predict(
-                color_response[0], config, input_format="bgr", vis_block=True
-            )
-            handle_detections = [det for det in predictions if det.name == "handle"]
-            refined_pose = refine_handle_position(
-                handle_detections, handle_pose, depth_response, frame_name
-            )
-
-            pull_start, pull_end = pull(
-                pose=refined_pose,
-                start_distance=0.1,
-                mid_distance=-0.1,
-                end_distance=0.3,
-                frame_name=frame_name,
-                stiffness_diag_in=STIFFNESS_DIAG1,
-                damping_diag_in=DAMPING_DIAG,
-                stiffness_diag_out=STIFFNESS_DIAG2,
-                damping_diag_out=DAMPING_DIAG,
-                forces=FORCES,
-                follow_arm=False,
-                release_after=True,
-            )
-            direction = pull_start.coordinates - pull_end.coordinates
-            pull_start.set_rot_from_direction(direction)
-            pull_end.set_rot_from_direction(direction)
-            push(
-                start_pose=pull_end,
-                end_pose=pull_start,
-                start_distance=0.1,
-                end_distance=-0.05,
-                frame_name=frame_name,
-                stiffness_diag=STIFFNESS_DIAG1,
-                damping_diag=DAMPING_DIAG,
-                forces=FORCES,
-                follow_arm=False,
-            )
-
-        stow_arm()
-
-        ###############################################################################
-        ################################## FIND ITEM ##################################
-        ###############################################################################
-
-        ###############################################################################
-        ################################## PLANNING ###################################
-        ###############################################################################
+            cabinet_poses = [Pose3D(center) for center in cabinet_centers]
+            print(f"{cabinet_poses=}")
+            search_drawer(cabinet_poses, env_pcd, config, frame_name)
 
         return frame_name
+
+
+# TODO: take detection with highest confidence, not just average
+# TODO: take 3D difference when checking handles
 
 
 def main():
