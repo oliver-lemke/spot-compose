@@ -31,17 +31,17 @@ world_object_client = WorldObjectClientSingleton()
 
 class _MovementFunction(ControlFunction):
     def __call__(
-        self,
-        config: Config,
-        sdk: Sdk,
-        *args,
-        **kwargs,
+            self,
+            config: Config,
+            sdk: Sdk,
+            *args,
+            **kwargs,
     ) -> str:
         ODOM_FIRST = True
 
         ft.FrameTransformer()
         if ODOM_FIRST:
-            x, y, angle_degrees = 0, 0, 180
+            x, y, angle_degrees = -0.9, -0.4, 160
             pose = Pose2D(np.array([x, y]))
             pose.set_rot_from_angle(angle_degrees, degrees=True)
             move_body(

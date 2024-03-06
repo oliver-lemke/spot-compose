@@ -307,7 +307,7 @@ def search_drawer(cabinet_poses: list[Pose3D], env_pcd: PointCloud, config: Conf
         )
         handle_posess.append(handle_poses)
 
-    print("al detections:", *handle_posess, sep="\n")
+    print("all detections:", *handle_posess, sep="\n")
     handle_poses = cluster_handle_poses(handle_posess)
     print("clustered:", *handle_poses, sep="\n")
     handle_poses = filter_handle_poses(handle_poses)
@@ -316,8 +316,10 @@ def search_drawer(cabinet_poses: list[Pose3D], env_pcd: PointCloud, config: Conf
     ###############################################################################
     ################################ ARM COMMANDS #################################
     ###############################################################################
-    camera_add_pose_refinement = Pose3D((-0.35, 0, 0.2))
-    camera_add_pose_refinement.set_rot_from_rpy((0, 35, 0), degrees=True)
+    camera_add_pose_refinement = Pose3D((-0.35, -0.2, 0.2))
+    camera_add_pose_refinement.set_rot_from_rpy((0, 35, 35), degrees=True)
+
+    detection_drawer_pairs = []
 
     carry()
     for handle_pose in handle_poses:
@@ -355,10 +357,12 @@ def search_drawer(cabinet_poses: list[Pose3D], env_pcd: PointCloud, config: Conf
         )
         camera_pose = refined_pose @ camera_add_pose
         print(f"{camera_pose=}")
-        move_arm(camera_pose, frame_name=frame_name)
+        move_arm(camera_pose, frame_name=frame_name, body_assist=True)
         imgs = get_rgb_pictures([GRIPPER_IMAGE_COLOR])
-        detection_dict = detect_objects(imgs[0][0], ["ball"], vis_block=True)
-        print(f"{detection_dict=}")
+        detections = detect_objects(imgs[0][0], ["ball", "pen"], vis_block=True)
+        print(f"{detections=}")
+        pairs = [(refined_pose, det) for det in detections]
+        detection_drawer_pairs.extend(pairs)
         direction = pull_start.coordinates - pull_end.coordinates
         pull_start.set_rot_from_direction(direction)
         pull_end.set_rot_from_direction(direction)
@@ -374,6 +378,7 @@ def search_drawer(cabinet_poses: list[Pose3D], env_pcd: PointCloud, config: Conf
             follow_arm=False,
         )
 
+    print(f"{detection_drawer_pairs=}")
     stow_arm()
 
 
@@ -415,7 +420,7 @@ class _DynamicDrawers(ControlFunction):
             *args,
             **kwargs,
     ) -> str:
-        indices = (2, 7)
+        indices = (7, 2)
         config = recursive_config.Config()
 
         frame_name = localize_from_images(config)
