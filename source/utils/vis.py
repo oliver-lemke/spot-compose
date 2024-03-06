@@ -1,13 +1,19 @@
 """
 Utils for visualization.
 """
+from __future__ import annotations
 
+import colorsys
 import copy
 
 import numpy as np
 
 import cv2
 import open3d as o3d
+from matplotlib import pyplot as plt
+
+from utils.object_detetion import Detection
+
 from utils.importer import PointCloud, Vector3dVector
 
 
@@ -45,7 +51,7 @@ def show_depth_image(depth_image: np.ndarray, title: str = "Depth Image"):
 
 
 def show_two_geometries_colored(
-    geometry1, geometry2, color1=(1, 0, 0), color2=(0, 1, 0)
+        geometry1, geometry2, color1=(1, 0, 0), color2=(0, 1, 0)
 ) -> None:
     """
     Given two open3d geometries, color them and visualize them.
@@ -67,3 +73,49 @@ def show_point_cloud_in_out(points: np.ndarray, in_mask: np.ndarray) -> None:
     pcd_in = pcd.select_by_index(np.where(in_mask)[0])
     pcd_out = pcd.select_by_index(np.where(~in_mask)[0])
     show_two_geometries_colored(pcd_out, pcd_in)
+
+
+def generate_distinct_colors(n: int) -> list[tuple[float, float, float]]:
+    """
+    Generate n visually distinct RGB colors.
+
+    Args:
+    - n (int): The number of distinct colors to generate.
+
+    Returns:
+    - List[Tuple[int, int, int]]: A list of tuples representing RGB colors.
+    """
+    colors = []
+    for i in range(n):
+        # Divide the hue space into equal parts
+        hue = i / n
+        # Fixed saturation and lightness for high contrast and brightness
+        saturation = 0.7
+        lightness = 0.5
+        # Convert HSL color to RGB
+        r, g, b = colorsys.hls_to_rgb(hue, lightness, saturation)
+        colors.append((r, g, b))
+
+    return colors
+
+
+def draw_boxes(image: np.ndarray, detections: list[Detection]) -> None:
+    plt.figure(figsize=(16, 10))
+    plt.imshow(image)
+    ax = plt.gca()
+    names = sorted(list(set([det.name for det in detections])))
+    names_dict = {name: i for i, name in enumerate(names)}
+    colors = generate_distinct_colors(len(names_dict))
+
+    for name, conf, (xmin, ymin, xmax, ymax) in detections:
+        w, h = xmax - xmin, ymax - ymin
+        color = colors[names_dict[name]]
+        ax.add_patch(
+            plt.Rectangle(
+                (xmin, ymin), w, h, fill=False, color=color, linewidth=6
+            )
+        )
+        text = f"{name}: {conf:0.2f}"
+        ax.text(xmin, ymin, text, fontsize=15, bbox=dict(facecolor="yellow", alpha=0.5))
+    plt.axis("off")
+    plt.show()

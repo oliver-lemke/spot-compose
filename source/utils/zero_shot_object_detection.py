@@ -7,14 +7,19 @@ from __future__ import annotations
 import numpy as np
 
 import cv2
+import requests
 
-# import skimage
 from PIL import Image, ImageDraw
-from transformers import pipeline
-from utils.vis import normalize_image
+from transformers import Owlv2Processor, Owlv2ForObjectDetection
 
-_CHECKPOINT = "google/owlvit-base-patch32"
-_DETECTOR = pipeline(model=_CHECKPOINT, task="zero-shot-object-detection")
+from utils import vis
+from utils.object_detetion import Detection, BBox
+from utils.vis import normalize_image
+import torch
+
+_CHECKPOINT = "google/owlv2-base-patch16-ensemble"
+_PROCESSOR = Owlv2Processor.from_pretrained("google/owlv2-base-patch16-ensemble")
+_MODEL = Owlv2ForObjectDetection.from_pretrained("google/owlv2-base-patch16-ensemble")
 _SCORE_THRESH = 0.2
 
 
@@ -22,13 +27,15 @@ def detect_objects(
     image: np.ndarray,
     items: list[str],
     input_format: str = "rgb",
+    add_photo_of: bool = True,
     vis_block: bool = True,
-) -> dict[str, dict]:
+) -> list[Detection]:
     """
     Detect objects in an image.
     :param image: to detect in
     :param items: which items to search for
     :param input_format: format of image, either "rgb" or "bgr"
+    :param add_photo_of: whether to add 'a photo of' to the input
     :param vis_block: whether to block execution for visualization
     :return: dict of detections consisting of {label: {score: score, box: (xmin, ymin, xmax, ymax)}}
     """
@@ -38,39 +45,42 @@ def detect_objects(
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
     image = normalize_image(image)
+    if add_photo_of:
+        texts = [f"a photo of a {item}" for item in items]
+    else:
+        texts = items
 
     image_pil = Image.fromarray(image)
-    predictions = _DETECTOR(image_pil, candidate_labels=items)
+    image_pil.show()
+    inputs = _PROCESSOR(text=[texts], images=image_pil, return_tensors="pt")
+    outputs = _MODEL(**inputs)
+    target_sizes = torch.Tensor([image_pil.size[::-1]])
+    # Convert outputs (bounding boxes and class logits) to COCO API
+    results = _PROCESSOR.post_process_object_detection(outputs=outputs, threshold=0.1, target_sizes=target_sizes)
+    predictions = results[0]
 
-    draw = ImageDraw.Draw(image_pil)
-    return_dict = {}
-    for prediction in predictions:
-        box = prediction["box"]
-        label = prediction["label"]
-        score = prediction["score"]
-
-        return_dict[label] = {}
-        return_dict[label]["score"] = score
-        return_dict[label]["box"] = box
-        xmin, ymin, xmax, ymax = box.values()
-        draw.rectangle((xmin, ymin, xmax, ymax), outline="red", width=1)
-        draw.text((xmin, ymin), f"{label}: {round(score, 2)}", fill="white")
+    detections = []
+    scores = predictions["scores"].cpu().detach().numpy()
+    labels = predictions["labels"].cpu().detach().numpy()
+    boxes = predictions["boxes"].cpu().detach().numpy()
+    for box, score, label in zip(boxes, scores, labels):
+        bbox = BBox(*box)
+        detection = Detection(name=items[label], conf=score, bbox=bbox)
+        detections.append(detection)
 
     if vis_block:
-        image_pil.show()
+        vis.draw_boxes(image, detections)
 
-    return return_dict
+    return detections
 
 
 def main() -> None:
-    image = cv2.imread(
-        "/Users/oliverlemke/Documents/University/2023-24/ext-projects/spot-mask-3d/source/scripts/my_robot_scripts/img.png"
-    )
-    # image = skimage.data.astronaut()
-    objects = ["glasses", "cables"]
-    dict_ = detect_objects(image, objects, input_format="rgb")
+    url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    image = Image.open(requests.get(url, stream=True).raw)
+    texts = ["cat", "dog"]
+    detections = detect_objects(np.asarray(image), texts, vis_block=True)
 
-    print(f"{dict_=}")
+    print(f"{detections=}")
 
 
 if __name__ == "__main__":

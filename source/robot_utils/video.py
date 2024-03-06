@@ -38,7 +38,7 @@ from scipy import ndimage
 from scipy.interpolate import griddata
 from utils import vis
 from utils.coordinates import Pose3D
-from utils.drawer_detection import BBox
+from utils.object_detetion import BBox
 from utils.importer import PointCloud, Vector3dVector
 from utils.point_clouds import icp
 from utils.recursive_config import Config
