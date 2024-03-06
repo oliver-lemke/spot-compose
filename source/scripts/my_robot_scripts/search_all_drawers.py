@@ -8,27 +8,28 @@ import numpy as np
 
 from bosdyn.api.image_pb2 import ImageResponse
 from bosdyn.client import Sdk
-from scipy.spatial import ConvexHull
-
 from robot_utils.advanced_movement import pull, push
 from robot_utils.base import ControlFunction, take_control_with_function
 from robot_utils.basic_movements import carry, gaze, move_arm, move_body, stow_arm
 from robot_utils.frame_transformer import FrameTransformerSingleton
 from robot_utils.video import (
+    GRIPPER_IMAGE_COLOR,
     frame_coordinate_from_depth_image,
     get_camera_rgbd,
+    get_rgb_pictures,
     localize_from_images,
     project_3D_to_2D,
-    select_points_from_bounding_box, get_rgb_pictures, GRIPPER_IMAGE_COLOR,
+    select_points_from_bounding_box,
 )
+from scipy.spatial import ConvexHull
 from sklearn.cluster import DBSCAN, KMeans
 from utils import recursive_config
 from utils.camera_geometry import plane_fitting_open3d
 from utils.coordinates import Pose2D, Pose3D, average_pose3Ds, pose_distanced
 from utils.drawer_detection import drawer_handle_matches
-from utils.object_detetion import BBox, Detection, Match
 from utils.drawer_detection import predict_yolodrawer as drawer_predict
 from utils.importer import PointCloud
+from utils.object_detetion import BBox, Detection, Match
 from utils.openmask_interface import get_mask_points
 from utils.point_clouds import body_planning_mult_furthest
 from utils.recursive_config import Config
@@ -61,12 +62,12 @@ SPLIT_THRESH = 1.0
 
 
 def find_plane_normal_pose(
-        points: np.ndarray,
-        center_coords: np.ndarray,
-        current_body: Pose2D,
-        threshold: float = 0.04,
-        min_samples: int = 3,
-        vis_block: bool = False,
+    points: np.ndarray,
+    center_coords: np.ndarray,
+    current_body: Pose2D,
+    threshold: float = 0.04,
+    min_samples: int = 3,
+    vis_block: bool = False,
 ) -> Pose3D:
     # TODO: filter for points nearest to center?
     normal = plane_fitting_open3d(
@@ -82,9 +83,9 @@ def find_plane_normal_pose(
 
 
 def calculate_handle_poses(
-        matches: list[Match],
-        depth_image_response: (np.ndarray, ImageResponse),
-        frame_name: str,
+    matches: list[Match],
+    depth_image_response: (np.ndarray, ImageResponse),
+    frame_name: str,
 ) -> list[Pose3D]:
     """
     Calculates pose and axis of motion of all handles in the image.
@@ -154,7 +155,7 @@ def calculate_handle_poses(
 
 
 def cluster_handle_poses(
-        handles_posess: list[list[Pose3D]], eps: float = 0.1, min_samples: int = 2
+    handles_posess: list[list[Pose3D]], eps: float = 0.1, min_samples: int = 2
 ) -> list[Pose3D]:
     handles_poses_flat = [
         handle_pose for handles_poses in handles_posess for handle_pose in handles_poses
@@ -177,11 +178,11 @@ def cluster_handle_poses(
 
 
 def refine_handle_position(
-        handle_detections: list[Detection],
-        prev_pose: Pose3D,
-        depth_image_response: (np.ndarray, ImageResponse),
-        frame_name: str,
-        discard_threshold: int = 70,
+    handle_detections: list[Detection],
+    prev_pose: Pose3D,
+    depth_image_response: (np.ndarray, ImageResponse),
+    frame_name: str,
+    discard_threshold: int = 70,
 ) -> Pose3D:
     prev_center = prev_pose.coordinates.reshape((1, 3))
     prev_center_2D = project_3D_to_2D(depth_image_response, prev_center, frame_name)
@@ -259,7 +260,9 @@ def filter_handle_poses(handle_poses: list[Pose3D]):
     return [p for p in handle_poses if 0.3 < p.coordinates[-1] < 0.75]
 
 
-def search_drawer(cabinet_poses: list[Pose3D], env_pcd: PointCloud, config: Config, frame_name: str) -> None:
+def search_drawer(
+    cabinet_poses: list[Pose3D], env_pcd: PointCloud, config: Config, frame_name: str
+) -> None:
     gaze_and_bodies = []
     for cabinet_pose in cabinet_poses:
         body_poses = body_planning_mult_furthest(
@@ -393,7 +396,9 @@ def calculate_center(points: np.ndarray) -> np.ndarray:
     return np.mean(points, axis=0)
 
 
-def split_and_calculate_centers(points: np.ndarray, threshold: float) -> list[np.ndarray]:
+def split_and_calculate_centers(
+    points: np.ndarray, threshold: float
+) -> list[np.ndarray]:
     """Split the point cloud and calculate centers if above threshold."""
     projected_area = calculate_projected_area(points)
     print(f"{projected_area=}")
@@ -414,11 +419,11 @@ def split_and_calculate_centers(points: np.ndarray, threshold: float) -> list[np
 
 class _DynamicDrawers(ControlFunction):
     def __call__(
-            self,
-            config: Config,
-            sdk: Sdk,
-            *args,
-            **kwargs,
+        self,
+        config: Config,
+        sdk: Sdk,
+        *args,
+        **kwargs,
     ) -> str:
         indices = (7, 2)
         config = recursive_config.Config()
@@ -433,7 +438,9 @@ class _DynamicDrawers(ControlFunction):
             cabinet_pcd, env_pcd = get_mask_points(
                 "cabinet", config, idx=idx, vis_block=True
             )
-            cabinet_centers = split_and_calculate_centers(np.asarray(cabinet_pcd.points), threshold=SPLIT_THRESH)
+            cabinet_centers = split_and_calculate_centers(
+                np.asarray(cabinet_pcd.points), threshold=SPLIT_THRESH
+            )
             cabinet_poses = [Pose3D(center) for center in cabinet_centers]
             print(f"{cabinet_poses=}")
             search_drawer(cabinet_poses, env_pcd, config, frame_name)
@@ -443,6 +450,7 @@ class _DynamicDrawers(ControlFunction):
 
 # TODO: take detection with highest confidence, not just average
 # TODO: take 3D difference when checking handles
+
 
 def main():
     config = Config()

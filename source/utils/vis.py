@@ -1,6 +1,7 @@
 """
 Utils for visualization.
 """
+
 from __future__ import annotations
 
 import colorsys
@@ -11,10 +12,8 @@ import numpy as np
 import cv2
 import open3d as o3d
 from matplotlib import pyplot as plt
-
-from utils.object_detetion import Detection
-
 from utils.importer import PointCloud, Vector3dVector
+from utils.object_detetion import Detection
 
 
 def normalize_image(image: np.ndarray) -> np.ndarray:
@@ -51,7 +50,7 @@ def show_depth_image(depth_image: np.ndarray, title: str = "Depth Image"):
 
 
 def show_two_geometries_colored(
-        geometry1, geometry2, color1=(1, 0, 0), color2=(0, 1, 0)
+    geometry1, geometry2, color1=(1, 0, 0), color2=(0, 1, 0)
 ) -> None:
     """
     Given two open3d geometries, color them and visualize them.
@@ -111,9 +110,7 @@ def draw_boxes(image: np.ndarray, detections: list[Detection]) -> None:
         w, h = xmax - xmin, ymax - ymin
         color = colors[names_dict[name]]
         ax.add_patch(
-            plt.Rectangle(
-                (xmin, ymin), w, h, fill=False, color=color, linewidth=6
-            )
+            plt.Rectangle((xmin, ymin), w, h, fill=False, color=color, linewidth=6)
         )
         text = f"{name}: {conf:0.2f}"
         ax.text(xmin, ymin, text, fontsize=15, bbox=dict(facecolor="yellow", alpha=0.5))

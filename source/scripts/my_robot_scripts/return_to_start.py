@@ -31,11 +31,11 @@ world_object_client = WorldObjectClientSingleton()
 
 class _MovementFunction(ControlFunction):
     def __call__(
-            self,
-            config: Config,
-            sdk: Sdk,
-            *args,
-            **kwargs,
+        self,
+        config: Config,
+        sdk: Sdk,
+        *args,
+        **kwargs,
     ) -> str:
         ODOM_FIRST = True
 

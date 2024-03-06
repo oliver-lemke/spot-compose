@@ -5,17 +5,15 @@ Utils for zero-shot object detection.
 from __future__ import annotations
 
 import numpy as np
+import torch
 
 import cv2
 import requests
-
 from PIL import Image
-from transformers import Owlv2Processor, Owlv2ForObjectDetection
-
+from transformers import Owlv2ForObjectDetection, Owlv2Processor
 from utils import vis
-from utils.object_detetion import Detection, BBox
+from utils.object_detetion import BBox, Detection
 from utils.vis import normalize_image
-import torch
 
 _CHECKPOINT = "google/owlv2-base-patch16-ensemble"
 _PROCESSOR = Owlv2Processor.from_pretrained("google/owlv2-base-patch16-ensemble")
@@ -24,11 +22,11 @@ _SCORE_THRESH = 0.5
 
 
 def detect_objects(
-        image: np.ndarray,
-        items: list[str],
-        input_format: str = "rgb",
-        add_photo_of: bool = True,
-        vis_block: bool = True,
+    image: np.ndarray,
+    items: list[str],
+    input_format: str = "rgb",
+    add_photo_of: bool = True,
+    vis_block: bool = True,
 ) -> list[Detection]:
     """
     Detect objects in an image.
@@ -55,8 +53,9 @@ def detect_objects(
     outputs = _MODEL(**inputs)
     target_sizes = torch.Tensor([image_pil.size[::-1]])
     # Convert outputs (bounding boxes and class logits) to COCO API
-    results = _PROCESSOR.post_process_object_detection(outputs=outputs, threshold=_SCORE_THRESH,
-                                                       target_sizes=target_sizes)
+    results = _PROCESSOR.post_process_object_detection(
+        outputs=outputs, threshold=_SCORE_THRESH, target_sizes=target_sizes
+    )
     predictions = results[0]
 
     detections = []
