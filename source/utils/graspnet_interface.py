@@ -330,8 +330,8 @@ def predict_partial_grasp(
 
 def _test_full_grasp() -> None:
     config = Config()
-    ITEM, INDEX = "white watering can", 0
-    RADIUS = 0.5
+    ITEM, INDEX = "dark green water bottle", 0
+    RADIUS = 0.75
     RES = 16
     VIS_BLOCK = True
 

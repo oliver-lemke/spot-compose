@@ -99,6 +99,7 @@ def get_mask_points(item: str, config, idx: int = 0, vis_block: bool = False):
 
     features = np.load(feat_path)
     masks = np.load(mask_path)
+    item = item.lower()
 
     features, feat_idx = np.unique(features, axis=0, return_index=True)
     masks = masks[:, feat_idx]
@@ -137,7 +138,7 @@ def get_mask_points(item: str, config, idx: int = 0, vis_block: bool = False):
 
 
 def visualize():
-    item = "cow plushy"
+    item = "clock"
     config = Config()
     for i in range(3):
         print(i, end=", ")
@@ -145,5 +146,5 @@ def visualize():
 
 
 if __name__ == "__main__":
-    get_mask_clip_features()
-    # visualize()
+    # get_mask_clip_features()
+    visualize()

@@ -102,12 +102,13 @@ def _add_points_to_cloud(
 
 def body_planning(
     env_cloud: PointCloud,
-    target: Pose3D,
+    target_pose: Pose3D,
     floor_height_thresh: float = -0.1,
     body_height: float = 0.45,
     min_distance: float = 0.75,
     max_distance: float = 1,
-    lam: float = 0.5,
+    lam_distance: float = 0.5,
+    lam_direction: float = 1.5,
     n_best: int = 1,
     vis_block: bool = False,
 ) -> list[Pose3D]:
@@ -120,13 +121,15 @@ def body_planning(
     :param body_height: height of robot body
     :param min_distance: minimum distance from object
     :param max_distance: max distance from object
-    :param lam: trade-off between distance to obstacles and distance to target, higher
+    :param lam_distance: trade-off between distance to obstacles and distance to target, higher
     lam, more emphasis on distance to target
+    :param lam_direction: trade-off between distance to obstacles and direction of grasp, higher
+    lam, more emphasis on direction of grasp
     :param n_best: number of positions to return
     :param vis_block: whether to visualize the position
     :return: list of viable coordinates ranked by score
     """
-    target = target.as_ndarray()
+    target = target_pose.as_ndarray()
 
     # delete floor from point cloud, so it doesn't interfere with the SDF
     points = np.asarray(env_cloud.points)
@@ -188,7 +191,11 @@ def body_planning(
     target_distances = target_distances.squeeze()
     target_distances = np.linalg.norm(target_distances, ord=2, axis=-1)
     ## get the top n coordinates
-    values_to_maximize = distances - lam * target_distances
+
+    points_to_target = target - filtered_circle_points
+    direction = target_pose.direction()
+    direction_agreeance = np.dot(points_to_target, direction)[0]
+    values_to_maximize = distances - lam_distance * target_distances + lam_direction * direction_agreeance
 
     # Flatten the array and get the indices that would sort it in descending order
     flat_indices = np.argsort(-values_to_maximize.flatten())

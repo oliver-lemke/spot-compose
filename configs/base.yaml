@@ -20,12 +20,12 @@ pre_scanned_graphs:
   floor: -0.1
   low_res: "24-03-08"
   high_res: "24-03-08b"
-  masked: "20240304_164512_scene"
+  masked: ""
 
 # paths are relative from project_root_directory
 subpaths:
   cache: "cache/"
-  logs: "logs/"
+  logs: "data/logs/"
   output: "output/"
   resume_from: "path/to/weights"
   data: "data/"

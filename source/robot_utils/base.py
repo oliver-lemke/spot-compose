@@ -28,6 +28,7 @@ from robot_utils.basic_movements import move_body
 from robot_utils.frame_transformer import FrameTransformerSingleton
 from utils import environment
 from utils.coordinates import Pose3D
+from utils.logger import TimedFileLogger, LoggerSingleton
 from utils.recursive_config import Config
 from utils.singletons import (
     GraphNavClientSingleton,
@@ -46,6 +47,7 @@ robot_command_client = RobotCommandClientSingleton()
 robot = RobotSingleton()
 robot_state_client = RobotStateClientSingleton()
 world_object_client = WorldObjectClientSingleton()
+logger = LoggerSingleton()
 
 ALL_SINGLETONS = (
     frame_transformer,
@@ -65,24 +67,24 @@ class ControlFunction(typing.Protocol):
     """
 
     def __call__(
-        self,
-        config: Config,
-        sdk: Sdk,
-        *args,
-        **kwargs,
+            self,
+            config: Config,
+            sdk: Sdk,
+            *args,
+            **kwargs,
     ) -> str:
         pass
 
 
 def take_control_with_function(
-    config: Config,
-    function: ControlFunction,
-    *args,
-    stand: bool = True,
-    power_off: bool = True,
-    body_assist: bool = False,
-    return_to_start: bool = True,
-    **kwargs,
+        config: Config,
+        function: ControlFunction,
+        *args,
+        stand: bool = True,
+        power_off: bool = True,
+        body_assist: bool = False,
+        return_to_start: bool = True,
+        **kwargs,
 ):
     """
     Code wrapping all ControlFunctions, handles all kinds of framework (see description at beginning of file).
@@ -95,6 +97,13 @@ def take_control_with_function(
     :param return_to_start: whether to return to start at the end of execution
     :param kwargs: other keyword-args for ControlFunction
     """
+
+    global logger
+    logger.set_instance(
+        TimedFileLogger(config)
+    )
+    logger.log("Robot started")
+
     # Setup adapted from github.com/boston-dynamics/spot-sdk/blob/master/python/examples/hello_spot/hello_spot.py
     spot_env_config = environment.get_environment_config(config, ["spot"])
     robot_config = config["robot_parameters"]
@@ -142,7 +151,7 @@ def take_control_with_function(
     ##################################################################################
 
     with bosdyn_client.lease.LeaseKeepAlive(
-        lease_client, must_acquire=True, return_at_exit=True
+            lease_client, must_acquire=True, return_at_exit=True
     ):
         # This allows us to lease the robot, and in here we actually do the commands
 
@@ -204,6 +213,7 @@ def take_control_with_function(
         )
 
         if return_to_start and return_values is not None:
+            logger.log("Returning to start")
             frame_name = return_values
             return_pose = Pose3D((1.5, 0, 0))
             return_pose.set_rot_from_rpy((0, 0, 180), degrees=True)
@@ -212,6 +222,7 @@ def take_control_with_function(
                 frame_name=frame_name,
             )
 
+        logger.log("Fin.")
         # Power the robot off. By specifying "cut_immediately=False", a safe power off command
         # is issued to the robot. This will attempt to sit the robot before powering off.
         if power_off:

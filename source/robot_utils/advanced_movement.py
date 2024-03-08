@@ -157,6 +157,7 @@ def positional_grab(
         distance_end: float,
         frame_name: str,
         already_gripping: bool = False,
+        **kwargs,
 ) -> None:
     """
     Grab something at a specified position. The gripper will first move towards the distanced pose, which is "pose",
@@ -174,9 +175,9 @@ def positional_grab(
         "frame_name": frame_name,
     }
 
-    move_arm_distanced(distance=distance_start, **static_params)
+    move_arm_distanced(distance=distance_start, **static_params, **kwargs)
     set_gripper(not already_gripping)
-    move_arm_distanced(distance=distance_end, **static_params)
+    move_arm_distanced(distance=distance_end, **static_params, **kwargs)
     set_gripper(False)
 
 
@@ -305,25 +306,15 @@ def push(
 
 
 def adapt_grasp(body_pose: Pose3D, grasp_pose: Pose3D):
-    grasp_in_body = grasp_pose @ body_pose.inverse()
-    y = grasp_in_body.coordinates[1]
-    side = 'left' if y >= 0 else 'right'
-    roll, pitch, yaw = Rotation.from_matrix(grasp_in_body.rot_matrix).as_euler('xyz', degrees=True)
-    if side == 'left':
-        if 0 <= roll < 90:
-            pass
-        else:
-            roll = roll % 90
-    else:
-        if -90 < roll < 0:
-            pass
-        else:
-            roll = roll % 90
-            roll = roll - 90
+    grasp_in_body = body_pose.inverse() @ grasp_pose
+    top_dir = grasp_in_body.rot_matrix @ np.array([0, 0, 1])
+    to_rotate = top_dir[0] < 0
 
-    rot_matrix = Rotation.from_euler('xzy', (roll, pitch, yaw), degrees=True).as_matrix()
-    grasp_in_body.rot_matrix = rot_matrix
-    grasp_pose_new = grasp_pose @ body_pose.inverse()
+    grasp_pose_new = Pose3D(grasp_pose.coordinates.copy(), grasp_pose.rot_matrix.copy())
+    if to_rotate:
+        roll_matrix = Rotation.from_euler("x", 180, degrees=True).as_matrix()
+        grasp_pose_new.rot_matrix = grasp_pose_new.rot_matrix @ roll_matrix
+
     return grasp_pose_new
 
 
