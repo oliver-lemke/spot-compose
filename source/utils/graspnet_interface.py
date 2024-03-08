@@ -22,16 +22,15 @@ from utils.coordinates import (
 from utils.docker_communication import save_files, send_request
 from utils.files import prep_tmp_path
 from utils.importer import PointCloud
-from utils.mask3D_interface import get_coordinates_from_item
+from utils.openmask_interface import get_mask_points
 from utils.point_clouds import get_radius_env_cloud
 from utils.recursive_config import Config
-from utils.user_input import get_wanted_item_mask3d
 
 # CONSTANTS
 # max gripper width is 0.175m, but in nn is 0.100m, therefore we scale models
 SCALE = 0.1 / 0.175
 # MAX_GRIPPER_WIDTH = 0.06
-MAX_GRIPPER_WIDTH = 0.05
+MAX_GRIPPER_WIDTH = 0.07
 GRIPPER_HEIGHT = 0.24227 * SCALE
 
 
@@ -66,7 +65,7 @@ def _get_rotation_matrices(resolution: int) -> np.ndarray:
 
 
 def _filter(
-    contents: dict, item_cloud: PointCloud, limits: np.ndarray, thresh: float = 0.02
+        contents: dict, item_cloud: PointCloud, limits: np.ndarray, thresh: float = 0.02
 ) -> list[(int, int)]:
     """
     Filter for all grasps that have a positive score (i.e. exist), and are on the item point cloud.
@@ -104,16 +103,16 @@ def _filter(
 
 
 def _predict(
-    item_cloud: PointCloud,
-    env_cloud: PointCloud,
-    limits: np.ndarray,
-    rotations: np.ndarray,
-    config: Config,
-    logger: Optional[Logger] = None,
-    top_n: int = 3,
-    timeout: int = 90,
-    top_down_grasp: bool = False,
-    vis_block: bool = False,
+        item_cloud: PointCloud,
+        env_cloud: PointCloud,
+        limits: np.ndarray,
+        rotations: np.ndarray,
+        config: Config,
+        logger: Optional[Logger] = None,
+        top_n: int = 3,
+        timeout: int = 90,
+        top_down_grasp: bool = False,
+        vis_block: bool = False,
 ):
     """
     Predict grasps using graspnet
@@ -214,14 +213,14 @@ def _predict(
 
 
 def predict_full_grasp(
-    item_cloud: PointCloud,
-    env_cloud: PointCloud,
-    config: recursive_config.Config,
-    logger: Optional[Logger] = None,
-    rotation_resolution: int = 24,
-    top_n: int = 3,
-    timeout: int = 90,
-    vis_block: bool = False,
+        item_cloud: PointCloud,
+        env_cloud: PointCloud,
+        config: recursive_config.Config,
+        logger: Optional[Logger] = None,
+        rotation_resolution: int = 24,
+        top_n: int = 3,
+        timeout: int = 90,
+        vis_block: bool = False,
 ) -> (np.ndarray, float):
     """
     Predict a grasp position from the item point cloud and its environment.
@@ -250,6 +249,7 @@ def predict_full_grasp(
         logger,
         top_n,
         timeout,
+        top_down_grasp=True,
         vis_block=vis_block,
     )
 
@@ -257,14 +257,14 @@ def predict_full_grasp(
 
 
 def predict_partial_grasp(
-    pcd: PointCloud,
-    original_point: Pose3D,
-    tolerance: float,
-    config: recursive_config.Config,
-    logger: Optional[Logger] = None,
-    top_n: int = 5,
-    timeout: int = 90,
-    vis_block: bool = False,
+        pcd: PointCloud,
+        original_point: Pose3D,
+        tolerance: float,
+        config: recursive_config.Config,
+        logger: Optional[Logger] = None,
+        top_n: int = 5,
+        timeout: int = 90,
+        vis_block: bool = False,
 ) -> (np.ndarray, float):
     """
     Predict a grasp position from the item point cloud and its environment.
@@ -330,27 +330,13 @@ def predict_partial_grasp(
 
 def _test_full_grasp() -> None:
     config = Config()
-    # ITEM, INDEX = "bag", 0
-    ITEM, INDEX = "lamp", 2
+    ITEM, INDEX = "white watering can", 0
     RADIUS = 0.5
     RES = 16
     VIS_BLOCK = True
 
-    # get position of wanted item
-    if ITEM is None:
-        item = get_wanted_item_mask3d()
-    else:
-        item = str(ITEM)
-    mask_path = config.get_subpath("masks")
-    ending = config["pre_scanned_graphs"]["masked"]
-    mask_path = os.path.join(mask_path, ending)
-
-    pc_path = config.get_subpath("aligned_point_clouds")
-    ending = config["pre_scanned_graphs"]["high_res"]
-    pc_path = os.path.join(str(pc_path), ending, "scene.ply")
-
-    item_cloud, environment_cloud = get_coordinates_from_item(
-        item, mask_path, pc_path, INDEX
+    item_cloud, environment_cloud = get_mask_points(
+        ITEM, config, idx=INDEX, vis_block=True
     )
     if VIS_BLOCK:
         o3d.visualization.draw_geometries([item_cloud])

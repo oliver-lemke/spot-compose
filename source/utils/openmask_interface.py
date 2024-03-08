@@ -125,7 +125,7 @@ def get_mask_points(item: str, config, idx: int = 0, vis_block: bool = False):
     pcd_out = pcd.select_by_index(np.where(~mask)[0])
 
     if vis_block:
-        pcd_in.paint_uniform_color([0, 1, 1])
+        pcd_in.paint_uniform_color([1, 0, 1])
         o3d.visualization.draw_geometries([pcd_in, pcd_out])
 
     return pcd_in, pcd_out
@@ -137,13 +137,13 @@ def get_mask_points(item: str, config, idx: int = 0, vis_block: bool = False):
 
 
 def visualize():
-    item = "cabinet"
+    item = "cow plushy"
     config = Config()
-    for i in range(10):
+    for i in range(3):
         print(i, end=", ")
         get_mask_points(item, config, idx=i, vis_block=True)
 
 
 if __name__ == "__main__":
-    # get_mask_clip_features()
-    visualize()
+    get_mask_clip_features()
+    # visualize()

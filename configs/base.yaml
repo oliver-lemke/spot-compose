@@ -18,8 +18,8 @@ pre_scanned_graphs:
   base_fiducial_id: 50
   graph_frame_name_prefix: "filtered_fiducial_"
   floor: -0.1
-  low_res: "24-02-22"
-  high_res: "24-02-22"
+  low_res: "24-03-08"
+  high_res: "24-03-08b"
   masked: "20240304_164512_scene"
 
 # paths are relative from project_root_directory
@@ -43,15 +43,15 @@ subpaths:
 
 servers:
   graspnet:
-    ip: "192.168.1.244"
+    ip: "192.168.1.186"
     port: 5000
     route: "graspnet/predict"
   openmask:
-    ip: "192.168.1.244"
+    ip: "192.168.1.186"
     port: 5001
     route: "openmask/save_and_predict"
   vitpose:
-    ip: "192.168.1.244"
+    ip: "192.168.1.186"
     port: 5002
     route: "vitpose/predict"
   darknet:
