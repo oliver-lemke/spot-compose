@@ -175,10 +175,11 @@ def positional_grab(
         "frame_name": frame_name,
     }
 
-    move_arm_distanced(distance=distance_start, **static_params, **kwargs)
+    move_arm_distanced(distance=distance_start, **static_params)
     set_gripper(not already_gripping)
     move_arm_distanced(distance=distance_end, **static_params, **kwargs)
     set_gripper(False)
+    move_arm_distanced(distance=distance_start, timeout=6, **static_params)
 
 
 def pull(
@@ -308,7 +309,7 @@ def push(
 def adapt_grasp(body_pose: Pose3D, grasp_pose: Pose3D):
     grasp_in_body = body_pose.inverse() @ grasp_pose
     top_dir = grasp_in_body.rot_matrix @ np.array([0, 0, 1])
-    to_rotate = top_dir[0] < 0
+    to_rotate = top_dir[0] < 0 or top_dir[2] < 0
 
     grasp_pose_new = Pose3D(grasp_pose.coordinates.copy(), grasp_pose.rot_matrix.copy())
     if to_rotate:

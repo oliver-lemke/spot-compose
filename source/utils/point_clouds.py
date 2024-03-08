@@ -103,27 +103,27 @@ def _add_points_to_cloud(
 def body_planning(
     env_cloud: PointCloud,
     target_pose: Pose3D,
+    resolution: int = 16,
+    nr_circles: int = 3,
     floor_height_thresh: float = -0.1,
     body_height: float = 0.45,
     min_distance: float = 0.75,
     max_distance: float = 1,
     lam_distance: float = 0.5,
-    lam_direction: float = 1.5,
     n_best: int = 1,
     vis_block: bool = False,
-) -> list[Pose3D]:
+) -> list[tuple[Pose3D, float]]:
     """
     Plans a position for the robot to go to given a cloud *without* the item to be
     grasped, as well as point to be grasped.
     :param env_cloud: the point cloud *without* the item
-    :param target: target coordinates for grasping
+    :param target_pose: target pose for grasping
     :param floor_height_thresh: z value under which to cut floor
     :param body_height: height of robot body
     :param min_distance: minimum distance from object
     :param max_distance: max distance from object
     :param lam_distance: trade-off between distance to obstacles and distance to target, higher
     lam, more emphasis on distance to target
-    :param lam_direction: trade-off between distance to obstacles and direction of grasp, higher
     lam, more emphasis on direction of grasp
     :param n_best: number of positions to return
     :param vis_block: whether to visualize the position
@@ -141,8 +141,8 @@ def body_planning(
 
     # get points radiating outwards from target coordinate
     circle_points = get_circle_points(
-        resolution=64,
-        nr_circles=3,
+        resolution=resolution,
+        nr_circles=nr_circles,
         start_radius=min_distance,
         end_radius=max_distance,
         return_cartesian=True,
@@ -192,19 +192,17 @@ def body_planning(
     target_distances = np.linalg.norm(target_distances, ord=2, axis=-1)
     ## get the top n coordinates
 
-    points_to_target = target - filtered_circle_points
-    direction = target_pose.direction()
-    direction_agreeance = np.dot(points_to_target, direction)[0]
-    values_to_maximize = distances - lam_distance * target_distances + lam_direction * direction_agreeance
+    scores = distances - lam_distance * target_distances
 
     # Flatten the array and get the indices that would sort it in descending order
-    flat_indices = np.argsort(-values_to_maximize.flatten())
+    flat_indices = np.argsort(-scores.flatten())
 
     # Get the indices of the top n entries
-    top_n_indices = np.unravel_index(flat_indices[:n_best], values_to_maximize.shape)
+    top_n_indices = np.unravel_index(flat_indices[:n_best], scores.shape)
 
     # Get the corresponding values
     top_n_coordinates = filtered_circle_points[top_n_indices]
+    top_n_scores = scores[top_n_indices]
 
     if vis_block:
         # draw the entries in the cloud
@@ -223,10 +221,10 @@ def body_planning(
         o3d.visualization.draw_geometries(drawable_geometries)
 
     poses = []
-    for coord in top_n_coordinates:
+    for score, coord in zip(top_n_scores, top_n_coordinates):
         pose = Pose3D(coord)
         pose.set_rot_from_direction(target - coord)
-        poses.append(pose)
+        poses.append((pose, score))
     return poses
 
 
