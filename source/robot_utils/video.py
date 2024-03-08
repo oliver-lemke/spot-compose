@@ -116,7 +116,7 @@ def get_pictures_from_sources(
     """
     set_gripper(True)
     image_request = [
-        build_image_request(source, pixel_format=pixel_format)
+        build_image_request(source, pixel_format=pixel_format, quality_percent=100)
         for source in image_sources
     ]
     robot.logger.info("Sending image request.")
@@ -329,7 +329,8 @@ def intrinsics_from_ImageSource(
     """
     Extract camera intrinsics from Image.source
     :param image_source: Image.source
-    :param correct: TODO
+    :param correct: For some reason the intrinsics matrix is wrong at least when getting both depth and RGB at the same
+    time, this correctrs for that
     :return: (3, 3) np array of the camera intrinsics
     """
     cam_ints = image_source.pinhole.intrinsics
@@ -437,7 +438,7 @@ def localize_from_images(config: Config, vis_block: bool = False) -> str:
         for detection in detections:
             if detection.tag_id != tag_id:
                 continue
-            if detection.goodness > best_fit:
+            if detection.decision_margin > best_fit:
                 best_fit = detection.decision_margin
                 best_frame_idx = frame_idx
                 best_detection = detection
@@ -611,14 +612,14 @@ def point_cloud_from_camera_captures(
 
 def frame_coordinate_from_depth_image(
     depth_image: np.ndarray,
-    depth_image_response: ImageResponse,
+    depth_response: ImageResponse,
     pixel_coordinatess: np.ndarray,
     frame_name: str,
 ) -> np.ndarray:
     """
     Compute a 3D coordinate from a depth image and pixel coordinate.
     :param depth_image: depth image, shape (H, W, 1)
-    :param depth_image_response: associated ImageResponse
+    :param depth_response: associated ImageResponse
     :param pixel_coordinatess: coordinates of the pixel to get the 3D coordinate of (format: height, width)
     :param frame_name: frame relative to which to express the 3D coordinate
     """
@@ -632,13 +633,13 @@ def frame_coordinate_from_depth_image(
     target_depth = griddata(
         valid_coords, valid_depths, pixel_coordinates_flipped, method="cubic"
     )
-    target_depth = target_depth / depth_image_response.source.depth_scale
+    target_depth = target_depth / depth_response.source.depth_scale
     # print(f"{target_depth=}")
 
     # prepare intrinsics, extrinsics
-    intrinsics = intrinsics_from_ImageSource(depth_image_response.source)
+    intrinsics = intrinsics_from_ImageSource(depth_response.source)
     camera_tform_odom = camera_pose_from_ImageCapture(
-        depth_image_response.shot, ODOM_FRAME_NAME
+        depth_response.shot, ODOM_FRAME_NAME
     )
     odom_tform_camera = camera_tform_odom.inverse(inplace=False).as_matrix()
     frame_tform_odom = frame_transformer.transform_matrix(ODOM_FRAME_NAME, frame_name)
