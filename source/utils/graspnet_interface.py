@@ -358,7 +358,7 @@ def predict_partial_grasp(
 
 def _test_full_grasp() -> None:
     config = Config()
-    ITEM, INDEX = "clock", 0
+    ITEM, INDEX = "blue purple book", 0
     RADIUS = 0.75
     RES = 16
     VIS_BLOCK = True

@@ -138,13 +138,13 @@ def get_mask_points(item: str, config, idx: int = 0, vis_block: bool = False):
 
 
 def visualize():
-    item = "clock"
+    item = "green watering can"
     config = Config()
-    for i in range(3):
+    for i in range(5):
         print(i, end=", ")
         get_mask_points(item, config, idx=i, vis_block=True)
 
 
 if __name__ == "__main__":
-    get_mask_clip_features()
-    # visualize()
+    # get_mask_clip_features()
+    visualize()
