@@ -99,6 +99,7 @@ def get_mask_points(item: str, config, idx: int = 0, vis_block: bool = False):
 
     features = np.load(feat_path)
     masks = np.load(mask_path)
+    item = item.lower()
 
     features, feat_idx = np.unique(features, axis=0, return_index=True)
     masks = masks[:, feat_idx]
@@ -125,7 +126,7 @@ def get_mask_points(item: str, config, idx: int = 0, vis_block: bool = False):
     pcd_out = pcd.select_by_index(np.where(~mask)[0])
 
     if vis_block:
-        pcd_in.paint_uniform_color([0, 1, 1])
+        pcd_in.paint_uniform_color([1, 0, 1])
         o3d.visualization.draw_geometries([pcd_in, pcd_out])
 
     return pcd_in, pcd_out
@@ -137,9 +138,9 @@ def get_mask_points(item: str, config, idx: int = 0, vis_block: bool = False):
 
 
 def visualize():
-    item = "cabinet"
+    item = "green watering can"
     config = Config()
-    for i in range(10):
+    for i in range(15):
         print(i, end=", ")
         get_mask_points(item, config, idx=i, vis_block=True)
 

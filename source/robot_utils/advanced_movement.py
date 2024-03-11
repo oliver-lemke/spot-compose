@@ -157,6 +157,7 @@ def positional_grab(
     distance_end: float,
     frame_name: str,
     already_gripping: bool = False,
+    **kwargs,
 ) -> None:
     """
     Grab something at a specified position. The gripper will first move towards the distanced pose, which is "pose",
@@ -176,8 +177,9 @@ def positional_grab(
 
     move_arm_distanced(distance=distance_start, **static_params)
     set_gripper(not already_gripping)
-    move_arm_distanced(distance=distance_end, **static_params)
+    move_arm_distanced(distance=distance_end, **static_params, **kwargs)
     set_gripper(False)
+    move_arm_distanced(distance=distance_start, timeout=6, **static_params)
 
 
 def pull(
@@ -302,6 +304,19 @@ def push(
     )  # before handle
     set_gripper(False)  # fist
     move_arm_distanced(end_pose, end_distance, frame_name, **keywords)  # pushing
+
+
+def adapt_grasp(body_pose: Pose3D, grasp_pose: Pose3D):
+    grasp_in_body = body_pose.inverse() @ grasp_pose
+    top_dir = grasp_in_body.rot_matrix @ np.array([0, 0, 1])
+    to_rotate = top_dir[0] < 0 or top_dir[2] < -0.2
+
+    grasp_pose_new = Pose3D(grasp_pose.coordinates.copy(), grasp_pose.rot_matrix.copy())
+    if to_rotate:
+        roll_matrix = Rotation.from_euler("x", 180, degrees=True).as_matrix()
+        grasp_pose_new.rot_matrix = grasp_pose_new.rot_matrix @ roll_matrix
+
+    return grasp_pose_new
 
 
 def collect_dynamic_point_cloud(

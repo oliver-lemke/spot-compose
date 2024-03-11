@@ -41,14 +41,14 @@ class _MovementFunction(ControlFunction):
 
         ft.FrameTransformer()
         if ODOM_FIRST:
-            x, y, angle_degrees = -0.9, -0.4, 160
+            x, y, angle_degrees = -0.5, 0.3, 180
             pose = Pose2D(np.array([x, y]))
             pose.set_rot_from_angle(angle_degrees, degrees=True)
             move_body(
                 pose=pose,
                 frame_name=VISION_FRAME_NAME,
             )
-        frame_name = localize_from_images(config, vis_block=False)
+        frame_name = localize_from_images(config, vis_block=True)
         return frame_name
 
 

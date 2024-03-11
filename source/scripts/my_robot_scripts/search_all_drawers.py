@@ -23,7 +23,7 @@ from robot_utils.video import (
 )
 from scipy.spatial import ConvexHull
 from sklearn.cluster import DBSCAN, KMeans
-from utils import recursive_config
+from utils import recursive_config, vis
 from utils.camera_geometry import plane_fitting_open3d
 from utils.coordinates import Pose2D, Pose3D, average_pose3Ds, pose_distanced
 from utils.drawer_detection import drawer_handle_matches
@@ -51,14 +51,34 @@ robot = RobotSingleton()
 robot_state_client = RobotStateClientSingleton()
 world_object_client = WorldObjectClientSingleton()
 
-STAND_DISTANCE = 1.1
-STIFFNESS_DIAG1 = [200, 500, 500, 60, 60, 60]
+STAND_DISTANCE = 1.0
+STIFFNESS_DIAG1 = [200, 500, 500, 60, 60, 45]
 STIFFNESS_DIAG2 = [100, 0, 0, 60, 30, 30]
 DAMPING_DIAG = [2.5, 2.5, 2.5, 1.0, 1.0, 1.0]
 FORCES = [0, 0, 0, 0, 0, 0]
 CAMERA_ADD_COORDS = (-0.25, 0, 0.3)
 CAMERA_ANGLE = 55
 SPLIT_THRESH = 1.0
+MIN_PAIRWISE_DRAWER_DISTANCE = 0.1
+ITEMS = ["deer toy", "small clock", "headphones", "watch", "highlighter", "red bottle"]
+
+
+def determine_handle_center(
+    depth_image: np.ndarray, bbox: BBox, approach: str = "center"
+) -> np.ndarray:
+    xmin, ymin, xmax, ymax = [int(v) for v in bbox]
+    if approach == "min":
+        image_patch = depth_image[xmin:xmax, ymin:ymax].squeeze()
+        image_patch[image_patch == 0.0] = 100_000
+        center_flat = np.argmin(depth_image[xmin:xmax, ymin:ymax])
+        center = np.array(np.unravel_index(center_flat, image_patch.shape))
+        center = center.reshape((2,)) + np.array([xmin, ymin]).reshape((2,))
+    elif approach == "center":
+        x_center, y_center = int((xmin + xmax) // 2), int((ymin + ymax) // 2)
+        center = np.array([x_center, y_center])
+    else:
+        raise ValueError(f"Unknown type {approach}. Must be either 'min' or 'center'.")
+    return center
 
 
 def find_plane_normal_pose(
@@ -98,15 +118,7 @@ def calculate_handle_poses(
 
     # determine center coordinates for all handles
     for handle_bbox in handle_boxes:
-        xmin, ymin, xmax, ymax = [int(v) for v in handle_bbox]
-        # image_patch = depth_image[xmin:xmax, ymin:ymax].squeeze()
-        # image_patch[image_patch == 0.0] = 100_000
-        # center_flat = np.argmin(depth_image[xmin:xmax, ymin:ymax])
-        # center = np.array(np.unravel_index(center_flat, image_patch.shape))
-        # center = center.reshape((2,)) + np.array([xmin, ymin]).reshape((2,))
-
-        x_center, y_center = int((xmin + xmax) // 2), int((ymin + ymax) // 2)
-        center = np.array([x_center, y_center])
+        center = determine_handle_center(depth_image, handle_bbox)
         centers.append(center)
     if len(centers) == 0:
         return []
@@ -115,7 +127,7 @@ def calculate_handle_poses(
     # use centers to get depth and position of handle in frame coordinates
     center_coordss = frame_coordinate_from_depth_image(
         depth_image=depth_image,
-        depth_image_response=depth_response,
+        depth_response=depth_response,
         pixel_coordinatess=centers,
         frame_name=frame_name,
     ).reshape((-1, 3))
@@ -155,7 +167,9 @@ def calculate_handle_poses(
 
 
 def cluster_handle_poses(
-    handles_posess: list[list[Pose3D]], eps: float = 0.1, min_samples: int = 2
+    handles_posess: list[list[Pose3D]],
+    eps: float = MIN_PAIRWISE_DRAWER_DISTANCE,
+    min_samples: int = 2,
 ) -> list[Pose3D]:
     handles_poses_flat = [
         handle_pose for handles_poses in handles_posess for handle_pose in handles_poses
@@ -167,10 +181,11 @@ def cluster_handle_poses(
     for idx, label in enumerate(dbscan.labels_):
         handle_pose = handles_poses_flat[idx]
         cluster_dict[str(label)].append(handle_pose)
+    print("cluster_dict=", *cluster_dict.items(), sep="\n")
 
     avg_poses = []
     for key, cluster in cluster_dict.items():
-        if key == -1:
+        if key == "-1":
             continue
         avg_pose = average_pose3Ds(cluster)
         avg_poses.append(avg_pose)
@@ -182,51 +197,48 @@ def refine_handle_position(
     prev_pose: Pose3D,
     depth_image_response: (np.ndarray, ImageResponse),
     frame_name: str,
-    discard_threshold: int = 70,
-) -> Pose3D:
-    prev_center = prev_pose.coordinates.reshape((1, 3))
-    prev_center_2D = project_3D_to_2D(depth_image_response, prev_center, frame_name)
+    discard_threshold: int = MIN_PAIRWISE_DRAWER_DISTANCE,
+) -> (Pose3D, bool):
+    depth_image, depth_response = depth_image_response
+    prev_center_3D = prev_pose.coordinates.reshape((1, 3))
 
     if len(handle_detections) == 0:
         warnings.warn("No handles detected in refinement!")
-        return prev_pose
+        return prev_pose, True
     elif len(handle_detections) > 1:
-        centers = []
+        centers_2D = []
         for det in handle_detections:
             handle_bbox = det.bbox
-            x_center = int((handle_bbox.xmin + handle_bbox.xmax) // 2)
-            y_center = int((handle_bbox.ymin + handle_bbox.ymax) // 2)
-            center = np.array([x_center, y_center])
-            centers.append(center)
-        centers = np.stack(centers, axis=0)
+            center = determine_handle_center(depth_image, handle_bbox)
+            centers_2D.append(center)
+        centers_2D = np.stack(centers_2D, axis=0)
+        centers_3D = frame_coordinate_from_depth_image(
+            depth_image, depth_response, centers_2D, frame_name
+        )
         closest_new_idx = np.argmin(
-            np.linalg.norm(centers - prev_center_2D, axis=1), axis=0
+            np.linalg.norm(centers_3D - prev_center_3D, axis=1), axis=0
         )
         handle_bbox = handle_detections[closest_new_idx].bbox
-        detection_coordinates = centers[closest_new_idx].reshape((1, 2))
+        detection_coordinates_3D = centers_3D[closest_new_idx].reshape((1, 3))
     else:
         handle_bbox = handle_detections[0].bbox
-        x_center = int((handle_bbox.xmin + handle_bbox.xmax) // 2)
-        y_center = int((handle_bbox.ymin + handle_bbox.ymax) // 2)
-        detection_coordinates = np.array([x_center, y_center]).reshape((1, 2))
+        center = determine_handle_center(depth_image, handle_bbox).reshape((1, 2))
+        detection_coordinates_3D = frame_coordinate_from_depth_image(
+            depth_image, depth_response, center, frame_name
+        )
 
-        # if the distance between expected and mean detection is too large, it likely means that we detect another
-        # and also do not detect the original one we want to detect -> discard
-        pixel_offset = np.linalg.norm(detection_coordinates - prev_center_2D)
-        if pixel_offset > discard_threshold:
-            print(
-                "Only detection discarded as unlikely to be true detection!",
-                f"{pixel_offset=}",
-                sep="\n",
-            )
-            detection_coordinates = prev_center_2D
-
-    center_coords = frame_coordinate_from_depth_image(
-        depth_image=depth_image_response[0],
-        depth_image_response=depth_image_response[1],
-        pixel_coordinatess=detection_coordinates,
-        frame_name=frame_name,
-    ).reshape((3,))
+    # if the distance between expected and mean detection is too large, it likely means that we detect another
+    # and also do not detect the original one we want to detect -> discard
+    handle_offset = np.linalg.norm(detection_coordinates_3D - prev_center_3D)
+    discarded = False
+    if handle_offset > discard_threshold:
+        discarded = True
+        print(
+            "Only detection discarded as unlikely to be true detection!",
+            f"{handle_offset=}",
+            sep="\n",
+        )
+        detection_coordinates_3D = prev_center_3D
 
     xmin, ymin, xmax, ymax = handle_bbox
     d = 40
@@ -242,27 +254,28 @@ def refine_handle_position(
         frame_name, in_common_pose=True
     )
 
-    # vis_block=False
+    # vis_block = False
     # vis.show_point_cloud_in_out(points_frame, surr_only_mask)
 
+    detection_coordinates_3D = detection_coordinates_3D.reshape((3,))
     pose = find_plane_normal_pose(
         points_frame[surr_only_mask],
-        center_coords,
+        detection_coordinates_3D,
         current_body,
         threshold=0.04,
         min_samples=10,
         vis_block=False,
     )
-    return pose
+    return pose, discarded
 
 
 def filter_handle_poses(handle_poses: list[Pose3D]):
-    return [p for p in handle_poses if 0.3 < p.coordinates[-1] < 0.75]
+    return [p for p in handle_poses if 0.05 < p.coordinates[-1] < 0.75]
 
 
 def search_drawer(
     cabinet_poses: list[Pose3D], env_pcd: PointCloud, config: Config, frame_name: str
-) -> None:
+) -> list[tuple[Pose3D, Detection]]:
     gaze_and_bodies = []
     for cabinet_pose in cabinet_poses:
         body_poses = body_planning_mult_furthest(
@@ -272,7 +285,7 @@ def search_drawer(
             max_target_distance=2.25,
             min_obstacle_distance=0.75,
             n=4,
-            vis_block=True,
+            vis_block=False,
         )
         gaze_and_body = [(cabinet_pose, body_pose) for body_pose in body_poses]
         gaze_and_bodies.extend(gaze_and_body)
@@ -311,7 +324,7 @@ def search_drawer(
         handle_posess.append(handle_poses)
 
     print("all detections:", *handle_posess, sep="\n")
-    handle_poses = cluster_handle_poses(handle_posess)
+    handle_poses = cluster_handle_poses(handle_posess, eps=MIN_PAIRWISE_DRAWER_DISTANCE)
     print("clustered:", *handle_poses, sep="\n")
     handle_poses = filter_handle_poses(handle_poses)
     print("filtered:", *handle_poses, sep="\n")
@@ -319,29 +332,37 @@ def search_drawer(
     ###############################################################################
     ################################ ARM COMMANDS #################################
     ###############################################################################
-    camera_add_pose_refinement = Pose3D((-0.35, -0.2, 0.2))
-    camera_add_pose_refinement.set_rot_from_rpy((0, 35, 35), degrees=True)
+    camera_add_pose_refinement_right = Pose3D((-0.35, -0.2, 0.15))
+    camera_add_pose_refinement_right.set_rot_from_rpy((0, 25, 35), degrees=True)
+    camera_add_pose_refinement_left = Pose3D((-0.35, 0.2, 0.15))
+    camera_add_pose_refinement_left.set_rot_from_rpy((0, 25, -35), degrees=True)
+    ref_add_poses = (camera_add_pose_refinement_right, camera_add_pose_refinement_left)
 
     detection_drawer_pairs = []
 
     carry()
     for handle_pose in handle_poses:
+        # if no handle is detected in the refinement, redo it from a different position
         body_pose = pose_distanced(handle_pose, STAND_DISTANCE).to_dimension(2)
         move_body(body_pose, frame_name)
 
-        # refine
-        move_arm(handle_pose @ camera_add_pose_refinement, frame_name)
-        depth_response, color_response = get_camera_rgbd(
-            in_frame="image",
-            vis_block=False,
-        )
-        predictions = drawer_predict(
-            color_response[0], config, input_format="bgr", vis_block=True
-        )
-        handle_detections = [det for det in predictions if det.name == "handle"]
-        refined_pose = refine_handle_position(
-            handle_detections, handle_pose, depth_response, frame_name
-        )
+        refined_pose = handle_pose
+        for ref_pose in ref_add_poses:
+            move_arm(handle_pose @ ref_pose, frame_name)
+            depth_response, color_response = get_camera_rgbd(
+                in_frame="image",
+                vis_block=False,
+            )
+            predictions = drawer_predict(
+                color_response[0], config, input_format="bgr", vis_block=True
+            )
+            handle_detections = [det for det in predictions if det.name == "handle"]
+            refined_pose, discarded = refine_handle_position(
+                handle_detections, handle_pose, depth_response, frame_name
+            )
+            if not discarded:
+                break
+
         print(f"{refined_pose=}")
 
         pull_start, pull_end = pull(
@@ -362,7 +383,7 @@ def search_drawer(
         print(f"{camera_pose=}")
         move_arm(camera_pose, frame_name=frame_name, body_assist=True)
         imgs = get_rgb_pictures([GRIPPER_IMAGE_COLOR])
-        detections = detect_objects(imgs[0][0], ["ball", "pen"], vis_block=True)
+        detections = detect_objects(imgs[0][0], ITEMS, vis_block=True)
         print(f"{detections=}")
         pairs = [(refined_pose, det) for det in detections]
         detection_drawer_pairs.extend(pairs)
@@ -381,8 +402,8 @@ def search_drawer(
             follow_arm=False,
         )
 
-    print(f"{detection_drawer_pairs=}")
     stow_arm()
+    return detection_drawer_pairs
 
 
 def calculate_projected_area(points: np.ndarray) -> float:
@@ -425,7 +446,7 @@ class _DynamicDrawers(ControlFunction):
         *args,
         **kwargs,
     ) -> str:
-        indices = (7, 2)
+        indices = (2, 7)
         config = recursive_config.Config()
 
         frame_name = localize_from_images(config)
@@ -434,6 +455,7 @@ class _DynamicDrawers(ControlFunction):
         )
         print(f"{start_pose=}")
 
+        draw_det_pairs = []
         for idx in indices:
             cabinet_pcd, env_pcd = get_mask_points(
                 "cabinet", config, idx=idx, vis_block=True
@@ -443,13 +465,11 @@ class _DynamicDrawers(ControlFunction):
             )
             cabinet_poses = [Pose3D(center) for center in cabinet_centers]
             print(f"{cabinet_poses=}")
-            search_drawer(cabinet_poses, env_pcd, config, frame_name)
+            pairs = search_drawer(cabinet_poses, env_pcd, config, frame_name)
+            draw_det_pairs.extend(pairs)
 
+        print(f"{draw_det_pairs=}")
         return frame_name
-
-
-# TODO: take detection with highest confidence, not just average
-# TODO: take 3D difference when checking handles
 
 
 def main():

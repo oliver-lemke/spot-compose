@@ -5,9 +5,10 @@ Util functions for communicating with graspnet docker server.
 from __future__ import annotations
 
 import copy
+import heapq
 import os
 from logging import Logger
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -22,16 +23,15 @@ from utils.coordinates import (
 from utils.docker_communication import save_files, send_request
 from utils.files import prep_tmp_path
 from utils.importer import PointCloud
-from utils.mask3D_interface import get_coordinates_from_item
+from utils.openmask_interface import get_mask_points
 from utils.point_clouds import get_radius_env_cloud
 from utils.recursive_config import Config
-from utils.user_input import get_wanted_item_mask3d
 
 # CONSTANTS
 # max gripper width is 0.175m, but in nn is 0.100m, therefore we scale models
 SCALE = 0.1 / 0.175
 # MAX_GRIPPER_WIDTH = 0.06
-MAX_GRIPPER_WIDTH = 0.05
+MAX_GRIPPER_WIDTH = 0.07
 GRIPPER_HEIGHT = 0.24227 * SCALE
 
 
@@ -103,6 +103,24 @@ def _filter(
     return indices
 
 
+def get_k_best_scores(scores_dict: dict[Any, float], k: int) -> list[tuple[Any, float]]:
+    """
+    Returns the k elements with the highest scores from scores_dict.
+
+    Args:
+    scores_dict (Dict[Any, float]): A dictionary with elements as keys and their scores as values.
+    k (int): The number of top elements to return.
+
+    Returns:
+    List[Tuple[Any, float]]: A list of tuples containing the k elements with the highest scores and their corresponding scores.
+    """
+    # Use heapq.nlargest to find the k elements with the highest scores
+    # It requires an iterable and a function (lambda x: x[1]) to extract comparison keys (scores in this case)
+    k_best = heapq.nlargest(k, scores_dict.items(), key=lambda x: x[1])
+
+    return k_best
+
+
 def _predict(
     item_cloud: PointCloud,
     env_cloud: PointCloud,
@@ -111,10 +129,11 @@ def _predict(
     config: Config,
     logger: Optional[Logger] = None,
     top_n: int = 3,
+    n_best: int = 1,
     timeout: int = 90,
     top_down_grasp: bool = False,
     vis_block: bool = False,
-):
+) -> (np.ndarray, np.ndarray, np.ndarray):
     """
     Predict grasps using graspnet
     :param item_cloud: the point cloud of the item we want to grasp
@@ -184,13 +203,7 @@ def _predict(
     scores_dict = {(rot, nr): scoress[rot, nr] for (rot, nr) in good_indices}
     widths_dict = {(rot, nr): widthss[rot, nr] for (rot, nr) in good_indices}
 
-    # choose grasp with highest score
-    argmax = (-1, -1)
-    argmax_score = -1
-    for k, score in scores_dict.items():
-        if score > argmax_score:
-            argmax = k
-            argmax_score = score
+    maxes = get_k_best_scores(scores_dict, k=n_best)
 
     if vis_block:
         # ball_sizes = np.asarray((0.02, 0.011, 0.005)) * SCALE
@@ -204,13 +217,25 @@ def _predict(
         # visualize all best per angle
         o3d.visualization.draw_geometries([pcd, *grippers.values()])
         # visualize best gripper only
-        o3d.visualization.draw_geometries([pcd, grippers[argmax]])
+        grippers_display = [grippers[argmax] for (argmax, _) in maxes]
+        o3d.visualization.draw_geometries([pcd, *grippers_display])
+        o3d.visualization.draw_geometries([pcd, grippers_display[0]])
 
-    tf_matrix = tf_matrices_dict[argmax]
-    tf_matrix[:3, 3] = tf_matrix[:3, 3] / SCALE
-    print(tf_matrix)
-    width = widths_dict[argmax] / SCALE
-    return tf_matrix, width
+    tf_returns = []
+    width_returns = []
+    score_returns = []
+    for argmax, score in maxes:
+        tf = tf_matrices_dict[argmax]
+        tf[:3, 3] = tf[:3, 3] / SCALE
+        width = widths_dict[argmax] / SCALE
+        tf_returns.append(tf)
+        width_returns.append(width)
+        score_returns.append(score)
+    tf_returns = np.stack(tf_returns, axis=0)
+    width_returns = np.stack(width_returns, axis=0)
+    score_returns = np.stack(score_returns, axis=0)
+
+    return tf_returns, width_returns, score_returns
 
 
 def predict_full_grasp(
@@ -220,9 +245,10 @@ def predict_full_grasp(
     logger: Optional[Logger] = None,
     rotation_resolution: int = 24,
     top_n: int = 3,
+    n_best: int = 1,
     timeout: int = 90,
     vis_block: bool = False,
-) -> (np.ndarray, float):
+) -> (np.ndarray, np.ndarray, np.ndarray):
     """
     Predict a grasp position from the item point cloud and its environment.
     :param item_cloud: the point cloud of the item to be grasped
@@ -241,7 +267,7 @@ def predict_full_grasp(
     mins, maxs = np.min(item_points, axis=0), np.max(item_points, axis=0)
     limits = np.stack([mins, maxs], axis=0)
 
-    tf_matrix, width = _predict(
+    tf_matrices, widths, scores = _predict(
         item_cloud,
         env_cloud,
         limits,
@@ -249,11 +275,13 @@ def predict_full_grasp(
         config,
         logger,
         top_n,
+        n_best,
         timeout,
+        top_down_grasp=True,
         vis_block=vis_block,
     )
 
-    return tf_matrix, width
+    return tf_matrices, widths, scores
 
 
 def predict_partial_grasp(
@@ -330,27 +358,13 @@ def predict_partial_grasp(
 
 def _test_full_grasp() -> None:
     config = Config()
-    # ITEM, INDEX = "bag", 0
-    ITEM, INDEX = "lamp", 2
-    RADIUS = 0.5
+    ITEM, INDEX = "green watering can", 0
+    RADIUS = 0.75
     RES = 16
     VIS_BLOCK = True
 
-    # get position of wanted item
-    if ITEM is None:
-        item = get_wanted_item_mask3d()
-    else:
-        item = str(ITEM)
-    mask_path = config.get_subpath("masks")
-    ending = config["pre_scanned_graphs"]["masked"]
-    mask_path = os.path.join(mask_path, ending)
-
-    pc_path = config.get_subpath("aligned_point_clouds")
-    ending = config["pre_scanned_graphs"]["high_res"]
-    pc_path = os.path.join(str(pc_path), ending, "scene.ply")
-
-    item_cloud, environment_cloud = get_coordinates_from_item(
-        item, mask_path, pc_path, INDEX
+    item_cloud, environment_cloud = get_mask_points(
+        ITEM, config, idx=INDEX, vis_block=True
     )
     if VIS_BLOCK:
         o3d.visualization.draw_geometries([item_cloud])
@@ -362,10 +376,16 @@ def _test_full_grasp() -> None:
 
     # robot_target = body_planning(environment_cloud, end_coordinates, vis_block=True)[0]
     print("Request")
-    tf_matrix, _ = predict_full_grasp(
-        item_cloud, lim_env_cloud, config, rotation_resolution=RES, vis_block=VIS_BLOCK
+    tf_matrices, _, scores = predict_full_grasp(
+        item_cloud,
+        lim_env_cloud,
+        config,
+        rotation_resolution=RES,
+        top_n=5,
+        n_best=20,
+        vis_block=VIS_BLOCK,
     )
-    print(tf_matrix)
+    print(tf_matrices)
 
 
 def _test_limited_grasp() -> None:

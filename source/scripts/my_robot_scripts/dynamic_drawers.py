@@ -101,7 +101,7 @@ def calculate_handle_poses(
     # use centers to get depth and position of handle in frame coordinates
     center_coordss = frame_coordinate_from_depth_image(
         depth_image=depth_image,
-        depth_image_response=depth_response,
+        depth_response=depth_response,
         pixel_coordinatess=centers,
         frame_name=frame_name,
     ).reshape((-1, 3))
@@ -210,7 +210,7 @@ def refine_handle_position(
 
     center_coords = frame_coordinate_from_depth_image(
         depth_image=depth_image_response[0],
-        depth_image_response=depth_image_response[1],
+        depth_response=depth_image_response[1],
         pixel_coordinatess=detection_coordinates,
         frame_name=frame_name,
     ).reshape((3,))
