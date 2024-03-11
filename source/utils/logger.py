@@ -45,7 +45,9 @@ class TimedFileLogger:
             file_handler.setLevel(logging.DEBUG)
 
             # Create a formatter and set it for the file handler
-            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
             file_handler.setFormatter(formatter)
 
             # Add the file handler to the logger
@@ -53,7 +55,7 @@ class TimedFileLogger:
 
         return logger
 
-    def log(self, *messages: str, level: str = 'info') -> None:
+    def log(self, *messages: str, level: str = "info") -> None:
         """
         Logs a message with the specified level.
 
@@ -62,15 +64,15 @@ class TimedFileLogger:
         - message: The message to log.
         """
         for message in messages:
-            if level.lower() == 'info':
+            if level.lower() == "info":
                 self.logger.info(message)
-            elif level.lower() == 'debug':
+            elif level.lower() == "debug":
                 self.logger.debug(message)
-            elif level.lower() == 'warning':
+            elif level.lower() == "warning":
                 self.logger.warning(message)
-            elif level.lower() == 'error':
+            elif level.lower() == "error":
                 self.logger.error(message)
-            elif level.lower() == 'critical':
+            elif level.lower() == "critical":
                 self.logger.critical(message)
             else:
                 raise ValueError(f"Unsupported logging level: {level}")

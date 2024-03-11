@@ -44,8 +44,8 @@ world_object_client = WorldObjectClientSingleton()
 
 
 def rotate(
-        end_pose: Pose2D,
-        frame_name: str,
+    end_pose: Pose2D,
+    frame_name: str,
 ) -> None:
     """
     Rotate in position to rotation of end_pose
@@ -74,10 +74,10 @@ def rotate(
 
 
 def rotate_and_move_distanced(
-        end_pose: Pose2D,
-        distance: float,
-        frame_name: str,
-        sleep: bool = True,
+    end_pose: Pose2D,
+    distance: float,
+    frame_name: str,
+    sleep: bool = True,
 ) -> None:
     """
     First rotate, then move to a location, with a certain distance offset.
@@ -117,10 +117,10 @@ def rotate_and_move_distanced(
 
 
 def move_body_distanced(
-        end_pose: Pose2D,
-        distance: float,
-        frame_name: str,
-        sleep: bool = True,
+    end_pose: Pose2D,
+    distance: float,
+    frame_name: str,
+    sleep: bool = True,
 ) -> None:
     """
     Move to a location, with a certain distance offset.
@@ -152,12 +152,12 @@ def move_body_distanced(
 
 
 def positional_grab(
-        pose: Pose3D,
-        distance_start: float,
-        distance_end: float,
-        frame_name: str,
-        already_gripping: bool = False,
-        **kwargs,
+    pose: Pose3D,
+    distance_start: float,
+    distance_end: float,
+    frame_name: str,
+    already_gripping: bool = False,
+    **kwargs,
 ) -> None:
     """
     Grab something at a specified position. The gripper will first move towards the distanced pose, which is "pose",
@@ -183,19 +183,19 @@ def positional_grab(
 
 
 def pull(
-        pose: Pose3D,
-        start_distance: float,
-        mid_distance: float,
-        end_distance: float,
-        frame_name: str,
-        stiffness_diag_in: list[int] | None = None,
-        damping_diag_in: list[float] | None = None,
-        stiffness_diag_out: list[int] | None = None,
-        damping_diag_out: list[float] | None = None,
-        forces: list[float] | None = None,
-        release_after: bool = True,
-        follow_arm: bool = False,
-        timeout: float = 6.0,
+    pose: Pose3D,
+    start_distance: float,
+    mid_distance: float,
+    end_distance: float,
+    frame_name: str,
+    stiffness_diag_in: list[int] | None = None,
+    damping_diag_in: list[float] | None = None,
+    stiffness_diag_out: list[int] | None = None,
+    damping_diag_out: list[float] | None = None,
+    forces: list[float] | None = None,
+    release_after: bool = True,
+    follow_arm: bool = False,
+    timeout: float = 6.0,
 ) -> (Pose3D, Pose3D):
     """
     Executes a pulling motion (e.g. for drawers)
@@ -262,16 +262,16 @@ def pull(
 
 
 def push(
-        start_pose: Pose3D,
-        end_pose: Pose3D,
-        start_distance: float,
-        end_distance: float,
-        frame_name: str,
-        stiffness_diag: list[int] | None = None,
-        damping_diag: list[float] | None = None,
-        forces: list[float] | None = None,
-        follow_arm: bool = False,
-        timeout: float = 6.0,
+    start_pose: Pose3D,
+    end_pose: Pose3D,
+    start_distance: float,
+    end_distance: float,
+    frame_name: str,
+    stiffness_diag: list[int] | None = None,
+    damping_diag: list[float] | None = None,
+    forces: list[float] | None = None,
+    follow_arm: bool = False,
+    timeout: float = 6.0,
 ) -> (Pose3D, Pose3D):
     """
     Executes a pushing motion (e.g. for drawers)
@@ -320,12 +320,12 @@ def adapt_grasp(body_pose: Pose3D, grasp_pose: Pose3D):
 
 
 def collect_dynamic_point_cloud(
-        start_pose: Pose3D,
-        target_pose: Pose3D,
-        frame_name: str,
-        nr_captures: int = 4,
-        offset: float = 10,
-        degrees: bool = True,
+    start_pose: Pose3D,
+    target_pose: Pose3D,
+    frame_name: str,
+    nr_captures: int = 4,
+    offset: float = 10,
+    degrees: bool = True,
 ) -> PointCloud:
     """
     Collect a point cloud of an object in front of the gripper.
@@ -363,17 +363,17 @@ def collect_dynamic_point_cloud(
 
 
 def dynamically_refined_grasp_renew_grasp(
-        pose: Pose3D,
-        item_cloud: PointCloud,
-        distance_start: float,
-        distance_end: float,
-        frame_name: str,
-        nr_captures: int = 4,
-        offset: float = 20,
-        degrees: bool = True,
-        drift_threshold: float = 0.03,
-        icp_multiplier: int = 5,
-        vis_block: bool = False,
+    pose: Pose3D,
+    item_cloud: PointCloud,
+    distance_start: float,
+    distance_end: float,
+    frame_name: str,
+    nr_captures: int = 4,
+    offset: float = 20,
+    degrees: bool = True,
+    drift_threshold: float = 0.03,
+    icp_multiplier: int = 5,
+    vis_block: bool = False,
 ) -> None:
     """
     This method implement an adaptive grasp based on collecting a new point cloud close
@@ -461,15 +461,15 @@ def dynamically_refined_grasp_renew_grasp(
 
 
 def dynamically_refined_grasp_find_new_grasp(
-        pose: Pose3D,
-        distance_start: float,
-        distance_end: float,
-        config: Config,
-        frame_name: str,
-        nr_captures: int = 3,
-        offset: float = 10,
-        tolerance: float = 0.1,
-        degrees: bool = True,
+    pose: Pose3D,
+    distance_start: float,
+    distance_end: float,
+    config: Config,
+    frame_name: str,
+    nr_captures: int = 3,
+    offset: float = 10,
+    tolerance: float = 0.1,
+    degrees: bool = True,
 ) -> None:
     """
     This method implement an adaptive grasp based on collecting a new point cloud close

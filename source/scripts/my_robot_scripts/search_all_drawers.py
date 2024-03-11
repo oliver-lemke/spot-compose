@@ -60,10 +60,12 @@ CAMERA_ADD_COORDS = (-0.25, 0, 0.3)
 CAMERA_ANGLE = 55
 SPLIT_THRESH = 1.0
 MIN_PAIRWISE_DRAWER_DISTANCE = 0.1
-ITEMS = ['deer toy', 'small clock', 'headphones', 'watch', 'highlighter', 'red bottle']
+ITEMS = ["deer toy", "small clock", "headphones", "watch", "highlighter", "red bottle"]
 
 
-def determine_handle_center(depth_image: np.ndarray, bbox: BBox, approach: str = "center") -> np.ndarray:
+def determine_handle_center(
+    depth_image: np.ndarray, bbox: BBox, approach: str = "center"
+) -> np.ndarray:
     xmin, ymin, xmax, ymax = [int(v) for v in bbox]
     if approach == "min":
         image_patch = depth_image[xmin:xmax, ymin:ymax].squeeze()
@@ -80,12 +82,12 @@ def determine_handle_center(depth_image: np.ndarray, bbox: BBox, approach: str =
 
 
 def find_plane_normal_pose(
-        points: np.ndarray,
-        center_coords: np.ndarray,
-        current_body: Pose2D,
-        threshold: float = 0.04,
-        min_samples: int = 3,
-        vis_block: bool = False,
+    points: np.ndarray,
+    center_coords: np.ndarray,
+    current_body: Pose2D,
+    threshold: float = 0.04,
+    min_samples: int = 3,
+    vis_block: bool = False,
 ) -> Pose3D:
     # TODO: filter for points nearest to center?
     normal = plane_fitting_open3d(
@@ -101,9 +103,9 @@ def find_plane_normal_pose(
 
 
 def calculate_handle_poses(
-        matches: list[Match],
-        depth_image_response: (np.ndarray, ImageResponse),
-        frame_name: str,
+    matches: list[Match],
+    depth_image_response: (np.ndarray, ImageResponse),
+    frame_name: str,
 ) -> list[Pose3D]:
     """
     Calculates pose and axis of motion of all handles in the image.
@@ -165,7 +167,9 @@ def calculate_handle_poses(
 
 
 def cluster_handle_poses(
-        handles_posess: list[list[Pose3D]], eps: float = MIN_PAIRWISE_DRAWER_DISTANCE, min_samples: int = 2
+    handles_posess: list[list[Pose3D]],
+    eps: float = MIN_PAIRWISE_DRAWER_DISTANCE,
+    min_samples: int = 2,
 ) -> list[Pose3D]:
     handles_poses_flat = [
         handle_pose for handles_poses in handles_posess for handle_pose in handles_poses
@@ -189,11 +193,11 @@ def cluster_handle_poses(
 
 
 def refine_handle_position(
-        handle_detections: list[Detection],
-        prev_pose: Pose3D,
-        depth_image_response: (np.ndarray, ImageResponse),
-        frame_name: str,
-        discard_threshold: int = MIN_PAIRWISE_DRAWER_DISTANCE,
+    handle_detections: list[Detection],
+    prev_pose: Pose3D,
+    depth_image_response: (np.ndarray, ImageResponse),
+    frame_name: str,
+    discard_threshold: int = MIN_PAIRWISE_DRAWER_DISTANCE,
 ) -> (Pose3D, bool):
     depth_image, depth_response = depth_image_response
     prev_center_3D = prev_pose.coordinates.reshape((1, 3))
@@ -208,7 +212,9 @@ def refine_handle_position(
             center = determine_handle_center(depth_image, handle_bbox)
             centers_2D.append(center)
         centers_2D = np.stack(centers_2D, axis=0)
-        centers_3D = frame_coordinate_from_depth_image(depth_image, depth_response, centers_2D, frame_name)
+        centers_3D = frame_coordinate_from_depth_image(
+            depth_image, depth_response, centers_2D, frame_name
+        )
         closest_new_idx = np.argmin(
             np.linalg.norm(centers_3D - prev_center_3D, axis=1), axis=0
         )
@@ -217,8 +223,9 @@ def refine_handle_position(
     else:
         handle_bbox = handle_detections[0].bbox
         center = determine_handle_center(depth_image, handle_bbox).reshape((1, 2))
-        detection_coordinates_3D = frame_coordinate_from_depth_image(depth_image, depth_response,
-                                                                     center, frame_name)
+        detection_coordinates_3D = frame_coordinate_from_depth_image(
+            depth_image, depth_response, center, frame_name
+        )
 
     # if the distance between expected and mean detection is too large, it likely means that we detect another
     # and also do not detect the original one we want to detect -> discard
@@ -267,7 +274,7 @@ def filter_handle_poses(handle_poses: list[Pose3D]):
 
 
 def search_drawer(
-        cabinet_poses: list[Pose3D], env_pcd: PointCloud, config: Config, frame_name: str
+    cabinet_poses: list[Pose3D], env_pcd: PointCloud, config: Config, frame_name: str
 ) -> list[tuple[Pose3D, Detection]]:
     gaze_and_bodies = []
     for cabinet_pose in cabinet_poses:
@@ -411,7 +418,7 @@ def calculate_center(points: np.ndarray) -> np.ndarray:
 
 
 def split_and_calculate_centers(
-        points: np.ndarray, threshold: float
+    points: np.ndarray, threshold: float
 ) -> list[np.ndarray]:
     """Split the point cloud and calculate centers if above threshold."""
     projected_area = calculate_projected_area(points)
@@ -433,11 +440,11 @@ def split_and_calculate_centers(
 
 class _DynamicDrawers(ControlFunction):
     def __call__(
-            self,
-            config: Config,
-            sdk: Sdk,
-            *args,
-            **kwargs,
+        self,
+        config: Config,
+        sdk: Sdk,
+        *args,
+        **kwargs,
     ) -> str:
         indices = (2, 7)
         config = recursive_config.Config()

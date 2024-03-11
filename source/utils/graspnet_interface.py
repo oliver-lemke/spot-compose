@@ -8,7 +8,7 @@ import copy
 import heapq
 import os
 from logging import Logger
-from typing import Optional, Any
+from typing import Any, Optional
 
 import numpy as np
 
@@ -66,7 +66,7 @@ def _get_rotation_matrices(resolution: int) -> np.ndarray:
 
 
 def _filter(
-        contents: dict, item_cloud: PointCloud, limits: np.ndarray, thresh: float = 0.02
+    contents: dict, item_cloud: PointCloud, limits: np.ndarray, thresh: float = 0.02
 ) -> list[(int, int)]:
     """
     Filter for all grasps that have a positive score (i.e. exist), and are on the item point cloud.
@@ -122,17 +122,17 @@ def get_k_best_scores(scores_dict: dict[Any, float], k: int) -> list[tuple[Any, 
 
 
 def _predict(
-        item_cloud: PointCloud,
-        env_cloud: PointCloud,
-        limits: np.ndarray,
-        rotations: np.ndarray,
-        config: Config,
-        logger: Optional[Logger] = None,
-        top_n: int = 3,
-        n_best: int = 1,
-        timeout: int = 90,
-        top_down_grasp: bool = False,
-        vis_block: bool = False,
+    item_cloud: PointCloud,
+    env_cloud: PointCloud,
+    limits: np.ndarray,
+    rotations: np.ndarray,
+    config: Config,
+    logger: Optional[Logger] = None,
+    top_n: int = 3,
+    n_best: int = 1,
+    timeout: int = 90,
+    top_down_grasp: bool = False,
+    vis_block: bool = False,
 ) -> (np.ndarray, np.ndarray, np.ndarray):
     """
     Predict grasps using graspnet
@@ -239,15 +239,15 @@ def _predict(
 
 
 def predict_full_grasp(
-        item_cloud: PointCloud,
-        env_cloud: PointCloud,
-        config: recursive_config.Config,
-        logger: Optional[Logger] = None,
-        rotation_resolution: int = 24,
-        top_n: int = 3,
-        n_best: int = 1,
-        timeout: int = 90,
-        vis_block: bool = False,
+    item_cloud: PointCloud,
+    env_cloud: PointCloud,
+    config: recursive_config.Config,
+    logger: Optional[Logger] = None,
+    rotation_resolution: int = 24,
+    top_n: int = 3,
+    n_best: int = 1,
+    timeout: int = 90,
+    vis_block: bool = False,
 ) -> (np.ndarray, np.ndarray, np.ndarray):
     """
     Predict a grasp position from the item point cloud and its environment.
@@ -285,14 +285,14 @@ def predict_full_grasp(
 
 
 def predict_partial_grasp(
-        pcd: PointCloud,
-        original_point: Pose3D,
-        tolerance: float,
-        config: recursive_config.Config,
-        logger: Optional[Logger] = None,
-        top_n: int = 5,
-        timeout: int = 90,
-        vis_block: bool = False,
+    pcd: PointCloud,
+    original_point: Pose3D,
+    tolerance: float,
+    config: recursive_config.Config,
+    logger: Optional[Logger] = None,
+    top_n: int = 5,
+    timeout: int = 90,
+    vis_block: bool = False,
 ) -> (np.ndarray, float):
     """
     Predict a grasp position from the item point cloud and its environment.
@@ -377,7 +377,13 @@ def _test_full_grasp() -> None:
     # robot_target = body_planning(environment_cloud, end_coordinates, vis_block=True)[0]
     print("Request")
     tf_matrices, _, scores = predict_full_grasp(
-        item_cloud, lim_env_cloud, config, rotation_resolution=RES, top_n=5, n_best=20, vis_block=VIS_BLOCK
+        item_cloud,
+        lim_env_cloud,
+        config,
+        rotation_resolution=RES,
+        top_n=5,
+        n_best=20,
+        vis_block=VIS_BLOCK,
     )
     print(tf_matrices)
 

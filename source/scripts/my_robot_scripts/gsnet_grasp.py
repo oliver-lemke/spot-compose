@@ -5,7 +5,7 @@ import time
 import numpy as np
 
 from bosdyn.client import Sdk
-from robot_utils.advanced_movement import positional_grab, adapt_grasp
+from robot_utils.advanced_movement import adapt_grasp, positional_grab
 from robot_utils.base import ControlFunction, take_control_with_function
 from robot_utils.basic_movements import carry_arm, move_body, set_gripper, stow_arm
 from robot_utils.frame_transformer import FrameTransformerSingleton
@@ -13,6 +13,7 @@ from robot_utils.video import localize_from_images
 from scipy.spatial.transform import Rotation
 from utils import graspnet_interface
 from utils.coordinates import Pose2D, Pose3D
+from utils.logger import LoggerSingleton
 from utils.openmask_interface import get_mask_points
 from utils.point_clouds import body_planning, get_radius_env_cloud
 from utils.recursive_config import Config
@@ -24,7 +25,6 @@ from utils.singletons import (
     RobotStateClientSingleton,
     WorldObjectClientSingleton,
 )
-from utils.logger import LoggerSingleton
 
 frame_transformer = FrameTransformerSingleton()
 graph_nav_client = GraphNavClientSingleton()
@@ -36,9 +36,16 @@ world_object_client = WorldObjectClientSingleton()
 logger = LoggerSingleton()
 
 
-def joint_optimization_vec(target: Pose3D, tf_matrices: np.ndarray, widths: np.ndarray, scores: np.ndarray,
-                           body_scores: list[tuple[Pose3D, float]], lambda_body: float = 0.5,
-                           lambda_alignment: float = 1.0, temperature: float = 1.0) -> (Pose3D, Pose3D, float):
+def joint_optimization_vec(
+    target: Pose3D,
+    tf_matrices: np.ndarray,
+    widths: np.ndarray,
+    scores: np.ndarray,
+    body_scores: list[tuple[Pose3D, float]],
+    lambda_body: float = 0.5,
+    lambda_alignment: float = 1.0,
+    temperature: float = 1.0,
+) -> (Pose3D, Pose3D, float):
     nr_grasps = tf_matrices.shape[0]
     nr_poses = len(body_scores)
     # matrix is nr_grasps x nr_poses
@@ -46,7 +53,9 @@ def joint_optimization_vec(target: Pose3D, tf_matrices: np.ndarray, widths: np.n
     grasp_scores = scores.reshape((nr_grasps, 1))
     grasp_score_mat = np.tile(grasp_scores, (1, nr_poses))
 
-    pose_scores = np.asarray([score for (_, score) in body_scores]).reshape((1, nr_poses))
+    pose_scores = np.asarray([score for (_, score) in body_scores]).reshape(
+        (1, nr_poses)
+    )
     pose_score_mat = np.tile(pose_scores, (nr_grasps, 1))
 
     grasp_directions = [Pose3D.from_matrix(tf).direction() for tf in tf_matrices]
@@ -55,17 +64,23 @@ def joint_optimization_vec(target: Pose3D, tf_matrices: np.ndarray, widths: np.n
     body_coordinates = [pose.coordinates for (pose, _) in body_scores]
     body_coordinates_np = np.stack(body_coordinates, axis=1)
     body_to_targets_np = target.coordinates.reshape((3, 1)) - body_coordinates_np
-    body_coordinates_norm = body_to_targets_np / np.linalg.norm(body_to_targets_np, axis=0, keepdims=True)
+    body_coordinates_norm = body_to_targets_np / np.linalg.norm(
+        body_to_targets_np, axis=0, keepdims=True
+    )
 
     alignment_mat = grasp_directions_np @ body_coordinates_norm
     alignment_mat_tanh = np.tanh(alignment_mat * temperature)
 
-    joint_matrix = grasp_score_mat + lambda_body * pose_score_mat + lambda_alignment * alignment_mat_tanh
+    joint_matrix = (
+        grasp_score_mat
+        + lambda_body * pose_score_mat
+        + lambda_alignment * alignment_mat_tanh
+    )
 
     argmax_index = np.argmax(joint_matrix)
     # Convert the flattened index back to a 2D index
     grasp_argmax, pose_argmax = np.unravel_index(argmax_index, joint_matrix.shape)
-    print(f'{grasp_argmax=}', f'{pose_argmax=}')
+    print(f"{grasp_argmax=}", f"{pose_argmax=}")
     best_grasp = Pose3D.from_matrix(tf_matrices[grasp_argmax])
     width = widths[grasp_argmax]
     best_pose = body_scores[pose_argmax][0]
@@ -74,11 +89,11 @@ def joint_optimization_vec(target: Pose3D, tf_matrices: np.ndarray, widths: np.n
 
 class _BetterGrasp(ControlFunction):
     def __call__(
-            self,
-            config: Config,
-            sdk: Sdk,
-            *args,
-            **kwargs,
+        self,
+        config: Config,
+        sdk: Sdk,
+        *args,
+        **kwargs,
     ) -> str:
         ITEM = "poro plushy"
         RADIUS = 0.75
@@ -126,17 +141,31 @@ class _BetterGrasp(ControlFunction):
         body_planner_start = time.time_ns()
         logger.log("Starting body planning.")
         body_scores = body_planning(
-            environment_cloud, item_center, resolution=16, nr_circles=2, min_distance=0.65, max_distance=0.8,
-            floor_height_thresh=0.1, n_best=20, body_height=0.3,
-            vis_block=False
+            environment_cloud,
+            item_center,
+            resolution=16,
+            nr_circles=2,
+            min_distance=0.65,
+            max_distance=0.8,
+            floor_height_thresh=0.1,
+            n_best=20,
+            body_height=0.3,
+            vis_block=False,
         )
         logger.log("Ending body planning.")
         body_planner_end = time.time_ns()
 
         joint_start = time.time_ns()
         logger.log("Starting joint optimization.")
-        best_grasp, best_pose, width = joint_optimization_vec(item_center, tf_matrices, widths, scores, body_scores,
-                                                              lambda_body=LAM_BODY, lambda_alignment=LAM_ALIGNMENT)
+        best_grasp, best_pose, width = joint_optimization_vec(
+            item_center,
+            tf_matrices,
+            widths,
+            scores,
+            body_scores,
+            lambda_body=LAM_BODY,
+            lambda_alignment=LAM_ALIGNMENT,
+        )
         logger.log("Ending joint optimization.")
         joint_end = time.time_ns()
 
@@ -156,7 +185,7 @@ class _BetterGrasp(ControlFunction):
         robot_to_target = robot_to_target / np.linalg.norm(robot_to_target)
         direction = best_grasp.direction()
         extra_offset = np.dot(robot_to_target, direction) * distance_start
-        print(f'{extra_offset=}')
+        print(f"{extra_offset=}")
 
         body_pose_adder = Pose3D((-extra_offset, 0, 0))
         body_pose_distanced = best_pose @ body_pose_adder
@@ -173,7 +202,7 @@ class _BetterGrasp(ControlFunction):
         grasp_pose_new = adapt_grasp(best_pose, grasp_pose)
         pose_adder = Pose3D((0, 0, -0.01))
         grasp_pose_new = grasp_pose_new @ pose_adder
-        print(f'{width=}')
+        print(f"{width=}")
 
         arm_move_start = time.time_ns()
         logger.log("Starting arm movement.")
@@ -195,7 +224,14 @@ class _BetterGrasp(ControlFunction):
         time.sleep(2)
 
         stow_arm()
-        for name, start, end in (("loc", loc_timer_start, loc_timer_end), ("grasp", grasp_timer_start, grasp_timer_end), ("body_plan", body_planner_start, body_planner_end), ("joint", joint_start, joint_end), ("body_move", body_move_start, body_move_end), ("arm_move", arm_move_start, arm_move_end)):
+        for name, start, end in (
+            ("loc", loc_timer_start, loc_timer_end),
+            ("grasp", grasp_timer_start, grasp_timer_end),
+            ("body_plan", body_planner_start, body_planner_end),
+            ("joint", joint_start, joint_end),
+            ("body_move", body_move_start, body_move_end),
+            ("arm_move", arm_move_start, arm_move_end),
+        ):
             logger.log(f"{name} timer = {end - start} ns")
         logger.log("Ending script.")
         return frame_name
