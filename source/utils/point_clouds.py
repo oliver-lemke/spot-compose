@@ -135,6 +135,7 @@ def body_planning(
     points = np.asarray(env_cloud.points)
     min_points = np.min(points, axis=0)
     max_points = np.max(points, axis=0)
+    max_points[0] = 2.5
     points_bool = points[:, 2] > floor_height_thresh
     index = np.where(points_bool)[0]
     pc_no_ground = env_cloud.select_by_index(index)

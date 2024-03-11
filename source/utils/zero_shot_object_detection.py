@@ -4,6 +4,8 @@ Utils for zero-shot object detection.
 
 from __future__ import annotations
 
+import time
+
 import numpy as np
 import torch
 
@@ -77,7 +79,10 @@ def main() -> None:
     url = "http://images.cocodataset.org/val2017/000000039769.jpg"
     image = Image.open(requests.get(url, stream=True).raw)
     texts = ["cat", "dog"]
+    start = time.time_ns()
     detections = detect_objects(np.asarray(image), texts, vis_block=True)
+    end = time.time_ns()
+    print(end - start)
 
     print(f"{detections=}")
 

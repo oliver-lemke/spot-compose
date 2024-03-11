@@ -358,7 +358,7 @@ def predict_partial_grasp(
 
 def _test_full_grasp() -> None:
     config = Config()
-    ITEM, INDEX = "blue purple book", 0
+    ITEM, INDEX = "green watering can", 0
     RADIUS = 0.75
     RES = 16
     VIS_BLOCK = True
@@ -377,7 +377,7 @@ def _test_full_grasp() -> None:
     # robot_target = body_planning(environment_cloud, end_coordinates, vis_block=True)[0]
     print("Request")
     tf_matrices, _, scores = predict_full_grasp(
-        item_cloud, lim_env_cloud, config, rotation_resolution=RES, n_best=20, vis_block=VIS_BLOCK
+        item_cloud, lim_env_cloud, config, rotation_resolution=RES, top_n=5, n_best=20, vis_block=VIS_BLOCK
     )
     print(tf_matrices)
 

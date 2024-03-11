@@ -7,12 +7,12 @@ import numpy as np
 from bosdyn.client import Sdk
 from robot_utils.advanced_movement import positional_grab, adapt_grasp
 from robot_utils.base import ControlFunction, take_control_with_function
-from robot_utils.basic_movements import carry_arm, move_body, set_gripper, stow_arm, move_arm_distanced
+from robot_utils.basic_movements import carry_arm, move_body, set_gripper, stow_arm
 from robot_utils.frame_transformer import FrameTransformerSingleton
 from robot_utils.video import localize_from_images
 from scipy.spatial.transform import Rotation
 from utils import graspnet_interface
-from utils.coordinates import Pose2D, Pose3D, pose_distanced
+from utils.coordinates import Pose2D, Pose3D
 from utils.openmask_interface import get_mask_points
 from utils.point_clouds import body_planning, get_radius_env_cloud
 from utils.recursive_config import Config
@@ -80,7 +80,7 @@ class _BetterGrasp(ControlFunction):
             *args,
             **kwargs,
     ) -> str:
-        ITEM = "dark green bottle"
+        ITEM = "poro plushy"
         RADIUS = 0.75
         RESOLUTION = 16
         LAM_BODY = 0.01
@@ -94,17 +94,20 @@ class _BetterGrasp(ControlFunction):
         start_pose = Pose2D.from_bosdyn_pose(start_pose_bosdyn)
         print(f"{start_pose=}")
 
+        loc_timer_start = time.time_ns()
         logger.log("Starting 3D Instance Segmentation and Object Localization")
         item_cloud, environment_cloud = get_mask_points(ITEM, config, vis_block=False)
 
         lim_env_cloud = get_radius_env_cloud(item_cloud, environment_cloud, RADIUS)
         logger.log("Ending 3D Instance Segmentation and Object Localization")
+        loc_timer_end = time.time_ns()
 
         item_center = Pose3D(np.mean(np.asarray(item_cloud.points), axis=0))
         ###############################################################################
         ################################## PLANNING ###################################
         ###############################################################################
 
+        grasp_timer_start = time.time_ns()
         robot.logger.info("Starting graspnet request.")
         tf_matrices, widths, scores = graspnet_interface.predict_full_grasp(
             item_cloud,
@@ -117,8 +120,10 @@ class _BetterGrasp(ControlFunction):
             vis_block=False,
         )
         robot.logger.info("Ending graspnet request.")
+        grasp_timer_end = time.time_ns()
         item_center = Pose3D.from_matrix(tf_matrices[0])
 
+        body_planner_start = time.time_ns()
         logger.log("Starting body planning.")
         body_scores = body_planning(
             environment_cloud, item_center, resolution=16, nr_circles=2, min_distance=0.65, max_distance=0.8,
@@ -126,11 +131,14 @@ class _BetterGrasp(ControlFunction):
             vis_block=False
         )
         logger.log("Ending body planning.")
+        body_planner_end = time.time_ns()
 
+        joint_start = time.time_ns()
         logger.log("Starting joint optimization.")
         best_grasp, best_pose, width = joint_optimization_vec(item_center, tf_matrices, widths, scores, body_scores,
                                                               lambda_body=LAM_BODY, lambda_alignment=LAM_ALIGNMENT)
         logger.log("Ending joint optimization.")
+        joint_end = time.time_ns()
 
         print(f"{best_grasp=}", f"{best_pose=}")
         # correct tf_matrix, we need to rotate by 90 degrees
@@ -152,9 +160,11 @@ class _BetterGrasp(ControlFunction):
 
         body_pose_adder = Pose3D((-extra_offset, 0, 0))
         body_pose_distanced = best_pose @ body_pose_adder
+        body_move_start = time.time_ns()
         logger.log("Starting body movement.")
         move_body(body_pose_distanced.to_dimension(2), frame_name)
         logger.log("Ending body movement.")
+        body_move_end = time.time_ns()
 
         ###############################################################################
         ################################ ARM COMMANDS #################################
@@ -165,6 +175,7 @@ class _BetterGrasp(ControlFunction):
         grasp_pose_new = grasp_pose_new @ pose_adder
         print(f'{width=}')
 
+        arm_move_start = time.time_ns()
         logger.log("Starting arm movement.")
         carry_arm(True)
         positional_grab(
@@ -175,6 +186,7 @@ class _BetterGrasp(ControlFunction):
             already_gripping=False,
         )
         logger.log("Ending arm movement.")
+        arm_move_end = time.time_ns()
         # move_arm_distanced(grasp_pose_new, 0.03, frame_name)
         # time.sleep(1)
 
@@ -183,6 +195,8 @@ class _BetterGrasp(ControlFunction):
         time.sleep(2)
 
         stow_arm()
+        for name, start, end in (("loc", loc_timer_start, loc_timer_end), ("grasp", grasp_timer_start, grasp_timer_end), ("body_plan", body_planner_start, body_planner_end), ("joint", joint_start, joint_end), ("body_move", body_move_start, body_move_end), ("arm_move", arm_move_start, arm_move_end)):
+            logger.log(f"{name} timer = {end - start} ns")
         logger.log("Ending script.")
         return frame_name
 

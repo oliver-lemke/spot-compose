@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os.path
+import time
 from logging import Logger
 from typing import Optional
 
@@ -197,11 +198,6 @@ def _test_pose() -> None:
     dir_path = os.path.join(base_path, "test", "iCloud Photos")
     image_names = [
         "IMG_1885.jpg",
-        "IMG_1886.jpg",
-        "IMG_1887.jpg",
-        "IMG_1888.jpg",
-        "IMG_1889.jpg",
-        "IMG_1890.jpg",
     ]
     for image_name in image_names:
         img_path = os.path.join(dir_path, image_name)
@@ -211,4 +207,7 @@ def _test_pose() -> None:
 
 
 if __name__ == "__main__":
+    start = time.time_ns()
     _test_pose()
+    end = time.time_ns()
+    print(end - start)
