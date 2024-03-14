@@ -18,12 +18,11 @@ from robot_utils.video import (
     get_camera_rgbd,
     get_rgb_pictures,
     localize_from_images,
-    project_3D_to_2D,
     select_points_from_bounding_box,
 )
 from scipy.spatial import ConvexHull
 from sklearn.cluster import DBSCAN, KMeans
-from utils import recursive_config, vis
+from utils import recursive_config
 from utils.camera_geometry import plane_fitting_open3d
 from utils.coordinates import Pose2D, Pose3D, average_pose3Ds, pose_distanced
 from utils.drawer_detection import drawer_handle_matches
@@ -130,15 +129,16 @@ def calculate_handle_poses(
         depth_response=depth_response,
         pixel_coordinatess=centers,
         frame_name=frame_name,
+        vis_block=True,
     ).reshape((-1, 3))
 
     # select all points within the point cloud that belong to a drawer (not a handle) and determine the planes
     # the axis of motion is simply the normal of that plane
     drawer_bbox_pointss = select_points_from_bounding_box(
-        depth_image_response, drawer_boxes, frame_name, vis_block=False
+        depth_image_response, drawer_boxes, frame_name, vis_block=True
     )
     handle_bbox_pointss = select_points_from_bounding_box(
-        depth_image_response, handle_boxes, frame_name, vis_block=False
+        depth_image_response, handle_boxes, frame_name, vis_block=True
     )
     points_frame = drawer_bbox_pointss[0]
     drawer_masks = drawer_bbox_pointss[1]
@@ -213,7 +213,7 @@ def refine_handle_position(
             centers_2D.append(center)
         centers_2D = np.stack(centers_2D, axis=0)
         centers_3D = frame_coordinate_from_depth_image(
-            depth_image, depth_response, centers_2D, frame_name
+            depth_image, depth_response, centers_2D, frame_name, vis_block=True
         )
         closest_new_idx = np.argmin(
             np.linalg.norm(centers_3D - prev_center_3D, axis=1), axis=0
@@ -224,7 +224,7 @@ def refine_handle_position(
         handle_bbox = handle_detections[0].bbox
         center = determine_handle_center(depth_image, handle_bbox).reshape((1, 2))
         detection_coordinates_3D = frame_coordinate_from_depth_image(
-            depth_image, depth_response, center, frame_name
+            depth_image, depth_response, center, frame_name, vis_block=True
         )
 
     # if the distance between expected and mean detection is too large, it likely means that we detect another
@@ -247,7 +247,7 @@ def refine_handle_position(
         depth_image_response,
         [handle_bbox, surrounding_bbox],
         frame_name,
-        vis_block=False,
+        vis_block=True,
     )
     surr_only_mask = surr_mask & (~handle_mask)
     current_body = frame_transformer.get_current_body_position_in_frame(
@@ -306,6 +306,7 @@ def search_drawer(
         depth_response, color_response = get_camera_rgbd(
             in_frame="image",
             vis_block=False,
+            cut_to_size=False,
         )
         stow_arm()
         predictions = drawer_predict(
@@ -352,6 +353,7 @@ def search_drawer(
             depth_response, color_response = get_camera_rgbd(
                 in_frame="image",
                 vis_block=False,
+                cut_to_size=False
             )
             predictions = drawer_predict(
                 color_response[0], config, input_format="bgr", vis_block=True
@@ -446,7 +448,7 @@ class _DynamicDrawers(ControlFunction):
         *args,
         **kwargs,
     ) -> str:
-        indices = (2, 7)
+        indices = (3, 4)
         config = recursive_config.Config()
 
         frame_name = localize_from_images(config)
@@ -458,7 +460,7 @@ class _DynamicDrawers(ControlFunction):
         draw_det_pairs = []
         for idx in indices:
             cabinet_pcd, env_pcd = get_mask_points(
-                "cabinet", config, idx=idx, vis_block=True
+                "cabinet, shelf", config, idx=idx, vis_block=True
             )
             cabinet_centers = split_and_calculate_centers(
                 np.asarray(cabinet_pcd.points), threshold=SPLIT_THRESH

@@ -95,7 +95,7 @@ class _BetterGrasp(ControlFunction):
         *args,
         **kwargs,
     ) -> str:
-        ITEM = "poro plushy"
+        ITEM = "picture frame"
         RADIUS = 0.75
         RESOLUTION = 16
         LAM_BODY = 0.01
