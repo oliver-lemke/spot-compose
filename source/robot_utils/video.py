@@ -32,7 +32,7 @@ from bosdyn.client.image import (
 )
 from bosdyn.client.world_object import WorldObjectClient
 from robot_utils import frame_transformer as ft
-from robot_utils.basic_movements import set_gripper
+from robot_utils.basic_movements import set_gripper, gaze, stow_arm
 from robot_utils.frame_transformer import FrameTransformerSingleton
 from scipy import ndimage
 from scipy.interpolate import griddata
@@ -98,11 +98,11 @@ ALL_DEPTH_SOURCES = (
 
 
 def get_pictures_from_sources(
-    image_sources: Iterable[str],
-    pixel_format: image_pb2.Image.PixelFormat,
-    save_path: Optional[str] = None,
-    auto_rotate: bool = True,
-    vis_block: bool = False,
+        image_sources: Iterable[str],
+        pixel_format: image_pb2.Image.PixelFormat,
+        save_path: Optional[str] = None,
+        auto_rotate: bool = True,
+        vis_block: bool = False,
 ) -> list[(np.ndarray, image_pb2.ImageResponse)]:
     """
     Get picture from specified sources
@@ -127,30 +127,30 @@ def get_pictures_from_sources(
     for image_response in image_responses:
         num_bytes = 1  # Assume a default of 1 byte encodings.
         if (
-            image_response.shot.image.pixel_format
-            == image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
+                image_response.shot.image.pixel_format
+                == image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
         ):
             dtype = np.uint16
             extension = "png"
         else:
             if (
-                image_response.shot.image.pixel_format
-                == image_pb2.Image.PIXEL_FORMAT_RGB_U8
+                    image_response.shot.image.pixel_format
+                    == image_pb2.Image.PIXEL_FORMAT_RGB_U8
             ):
                 num_bytes = 3
             elif (
-                image_response.shot.image.pixel_format
-                == image_pb2.Image.PIXEL_FORMAT_RGBA_U8
+                    image_response.shot.image.pixel_format
+                    == image_pb2.Image.PIXEL_FORMAT_RGBA_U8
             ):
                 num_bytes = 4
             elif (
-                image_response.shot.image.pixel_format
-                == image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8
+                    image_response.shot.image.pixel_format
+                    == image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8
             ):
                 num_bytes = 1
             elif (
-                image_response.shot.image.pixel_format
-                == image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U16
+                    image_response.shot.image.pixel_format
+                    == image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U16
             ):
                 num_bytes = 2
             dtype = np.uint8
@@ -192,9 +192,9 @@ def get_pictures_from_sources(
 
 
 def get_rgb_pictures(
-    image_sources: Iterable[str],
-    auto_rotate: bool = True,
-    vis_block: bool = False,
+        image_sources: Iterable[str],
+        auto_rotate: bool = True,
+        vis_block: bool = False,
 ) -> list[(np.ndarray, image_pb2.ImageResponse)]:
     """
     Get rgb pictures of specified image sources.
@@ -215,9 +215,9 @@ def get_rgb_pictures(
 
 
 def get_greyscale_pictures(
-    image_sources: Iterable[str],
-    auto_rotate: bool = True,
-    vis_block: bool = False,
+        image_sources: Iterable[str],
+        auto_rotate: bool = True,
+        vis_block: bool = False,
 ) -> list[(np.ndarray, image_pb2.ImageResponse)]:
     """
     Get greyscale pictures of specified image sources.
@@ -238,9 +238,9 @@ def get_greyscale_pictures(
 
 
 def get_d_pictures(
-    image_sources: Iterable[str],
-    auto_rotate: bool = True,
-    vis_block: bool = False,
+        image_sources: Iterable[str],
+        auto_rotate: bool = True,
+        vis_block: bool = False,
 ) -> list[(np.ndarray, image_pb2.ImageResponse)]:
     """
     Get depth pictures of specified image sources.
@@ -261,10 +261,10 @@ def get_d_pictures(
 
 
 def get_camera_rgbd(
-    in_frame: str = "image",
-    cut_to_size: bool = True,
-    auto_rotate: bool = True,
-    vis_block: bool = False,
+        in_frame: str = "image",
+        cut_to_size: bool = True,
+        auto_rotate: bool = True,
+        vis_block: bool = False,
 ) -> list[(np.ndarray, image_pb2.ImageResponse)]:
     """
     Capture rgbd image from the gripper.
@@ -311,7 +311,7 @@ def get_camera_rgbd(
     return images
 
 
-def get_all_images_greyscale() -> list[(np.ndarray, image_pb2.ImageResponse)]:
+def get_all_images_greyscale(auto_rotate: bool = False) -> list[(np.ndarray, image_pb2.ImageResponse)]:
     """
     Captures all available greyscale images.
     :return: list of (image as np array, bosdyn ImageResponse), where the first is the image as a numpy array, and the
@@ -319,17 +319,28 @@ def get_all_images_greyscale() -> list[(np.ndarray, image_pb2.ImageResponse)]:
     """
     return get_greyscale_pictures(
         ALL_IMAGE_GREYSCALE_SOURCES,
-        auto_rotate=False,
+        auto_rotate=auto_rotate,
+    )
+
+
+def get_all_images_depth(auto_rotate: bool = False) -> list[(np.ndarray, image_pb2.ImageResponse)]:
+    """
+    Captures all available depth images.
+    :return: list of (image as np array, bosdyn ImageResponse), where the first is the image as a numpy array, and the
+    second is the ImageResponse object for every capture.
+    """
+    return get_d_pictures(
+        ALL_DEPTH_SOURCES,
+        auto_rotate=auto_rotate,
     )
 
 
 def intrinsics_from_ImageSource(
-    image_source: ImageSource, correct: bool = True
+        image_source: ImageSource
 ) -> np.ndarray:
     """
     Extract camera intrinsics from Image.source
     :param image_source: Image.source
-    :param correct: For some reason the intrinsics matrix is wrong at least when getting both depth and RGB at the same
     time, this correctrs for that
     :return: (3, 3) np array of the camera intrinsics
     """
@@ -339,7 +350,7 @@ def intrinsics_from_ImageSource(
     f, c = cam_ints.focal_length, cam_ints.principal_point
     return np.asarray(
         [
-            [f.x, 0, 203 if correct else c.x],
+            [f.x, 0, c.x],
             [0, f.y, c.y],
             [0, 0, 1],
         ]
@@ -347,8 +358,8 @@ def intrinsics_from_ImageSource(
 
 
 def camera_pose_from_ImageCapture(
-    image_capture: ImageCapture,
-    frame_relative_to: str = ODOM_FRAME_NAME,
+        image_capture: ImageCapture,
+        frame_relative_to: str = ODOM_FRAME_NAME,
 ) -> Pose3D:
     """
     Compute frame_tform_sensor.
@@ -366,8 +377,8 @@ def camera_pose_from_ImageCapture(
 
 
 def extrinsics_from_ImageCapture(
-    image_capture: ImageCapture,
-    relative_to_frame: str = BODY_FRAME_NAME,
+        image_capture: ImageCapture,
+        relative_to_frame: str = BODY_FRAME_NAME,
 ) -> Pose3D:
     """
     Compute frame_tform_sensor.
@@ -396,6 +407,104 @@ def build_surrounding_point_cloud() -> PointCloud:
     return pcd_body
 
 
+def detect_best_apriltag(tag_id: int, image_tuples_color: list[(np.ndarray, image_pb2.ImageResponse)],
+                         image_tuples_depth: list[(np.ndarray, image_pb2.ImageResponse)],
+                         detector: (apriltag.Detector | None) = None,
+                         vis_block: bool = False):
+    # check if color and depth images are same size
+    color_depth_same_size = True
+    for (image_color, _), (image_depth, _) in zip(image_tuples_color, image_tuples_depth):
+        if image_color.shape != image_depth.shape:
+            color_depth_same_size = False
+            break
+
+    if detector is None:
+        options = apriltag.DetectorOptions(families="tag36h11", refine_pose=True, refine_edges=True, refine_decode=True)
+        detector = apriltag.Detector(options)
+
+    best_fit = -1
+    best_frame_idx = -1
+    best_detection = None
+
+    # get image that best shows the apriltag
+    for frame_idx, (image, _) in enumerate(image_tuples_color):
+        detections = detector.detect(image)
+        for detection in detections:
+            if detection.tag_id != tag_id:
+                continue
+            if detection.decision_margin > best_fit:
+                best_fit = detection.decision_margin
+                best_frame_idx = frame_idx
+                best_detection = detection
+
+    if best_detection is None:
+        raise NoFiducialDetectedError()
+
+    # use that image to compute the current pose relative to it (body_tform_fiducial)
+    best_image_color, best_response_color = image_tuples_color[best_frame_idx]
+    best_image_depth, best_response_depth = image_tuples_depth[best_frame_idx]
+    intrinsics = intrinsics_from_ImageSource(best_response_color.source)
+    body_tform_camera = extrinsics_from_ImageCapture(
+        best_response_color.shot, BODY_FRAME_NAME
+    ).as_matrix()
+    robot.logger.info(
+        f"{best_frame_idx=}, name={image_tuples_color[best_frame_idx][1].shot.frame_name_image_sensor}"
+    )
+
+    center_2D = best_detection.center.astype(int)  # coordinate format (width, height)
+
+    # extract camera_tform_fiducial
+    points_3D = np.asarray(
+        [[-73, -73, 0], [73, -73, 0], [73, 73, 0], [-73, 73, 0], [0, 0, 0]]
+    ).astype(np.float32)
+    points_2D = np.vstack([best_detection.corners, best_detection.center]).astype(
+        np.float32
+    )
+
+    if vis_block:
+        best_image_color[:, center_2D[0]] = 0
+        best_image_color[center_2D[1], :] = 0
+        vis.show_image(best_image_color)
+
+    if color_depth_same_size:
+        center_3D = frame_coordinate_from_depth_image(best_image_depth, best_response_depth,
+                                                      center_2D,
+                                                      None,
+                                                      vis_block=vis_block)
+        # center_hom = np.vstack([center_3D.reshape((3, 1)), 1])
+        rvec_guess = cv2.Rodrigues(np.linalg.inv(best_detection.homography))[0]
+        tvec_guess = center_3D
+        use_extrinsic = True
+    else:
+        rvec_guess, tvec_guess, use_extrinsic = None, None, False
+
+    _, rvec, tvec = cv2.solvePnP(
+        objectPoints=points_3D,
+        imagePoints=points_2D,
+        cameraMatrix=intrinsics,
+        distCoeffs=np.zeros((4, 1)),  # assume no distortion
+        flags=0,
+        rvec=rvec_guess,
+        tvec=tvec_guess,
+        useExtrinsicGuess=use_extrinsic,
+    )
+
+    camera_tform_fiducial = np.eye(4)
+    rotation_matrix = cv2.Rodrigues(rvec)[0]
+    camera_tform_fiducial[:3, :3] = rotation_matrix
+    camera_tform_fiducial[:3, 3] = tvec.squeeze() / 1000
+
+    body_tform_fiducial = body_tform_camera @ camera_tform_fiducial
+
+    # correct for turn
+    body_tform_fiducial[:3, :3] = body_tform_fiducial[:3, :3] @ np.asarray(
+        [[0, 1, 0], [0, 0, -1], [-1, 0, 0]]
+    )
+    fiducial_tform_body = np.linalg.inv(body_tform_fiducial)
+
+    return fiducial_tform_body
+
+
 class NoFiducialDetectedError(Exception):
     pass
 
@@ -414,84 +523,42 @@ def localize_from_images(config: Config, vis_block: bool = False) -> str:
     (3) load the pre-scanned point cloud as the "ground truth"
     (4) compare prediction and ground truth via ICP and save the adjusted localization
     """
-    # create the apriltag (fiducial) detector
-    tag_id = config["pre_scanned_graphs"]["base_fiducial_id"]
-    options = apriltag.DetectorOptions(families="tag36h11", refine_pose=True)
-    detector = apriltag.Detector(options)
-
-    # set gripper to open to capture images from that camera as well
-    set_gripper(True)
-
     # get images from all robot cameras
     global image_client
     image_client.set_instance(robot.ensure_client(ImageClient.default_service_name))
-
-    image_tuples = get_all_images_greyscale()
-
-    best_fit = -1
-    best_frame_idx = -1
-    best_detection = None
-
-    # get image that best shows the apriltag
-    for frame_idx, (image, _) in enumerate(image_tuples):
-        detections = detector.detect(image)
-        for detection in detections:
-            if detection.tag_id != tag_id:
-                continue
-            if detection.decision_margin > best_fit:
-                best_fit = detection.decision_margin
-                best_frame_idx = frame_idx
-                best_detection = detection
-
-    if best_detection is None:
-        raise NoFiducialDetectedError()
-
-    # use that image to compute the current pose relative to it (body_tform_fiducial)
-    _, best_response = image_tuples[best_frame_idx]
-    intrinsics = intrinsics_from_ImageSource(best_response.source)
-    body_tform_camera = extrinsics_from_ImageCapture(
-        best_response.shot, BODY_FRAME_NAME
-    ).as_matrix()
-    robot.logger.info(
-        f"{best_frame_idx=}, name={image_tuples[best_frame_idx][1].shot.frame_name_image_sensor}"
-    )
-
-    # extract camera_tform_fiducial
-    points_3D = np.asarray(
-        [[-73, -73, 0], [73, -73, 0], [73, 73, 0], [-73, 73, 0], [0, 0, 0]]
-    ).astype(np.float32)
-    points_2D = np.vstack([best_detection.corners, best_detection.center]).astype(
-        np.float32
-    )
-    _, rvec, tvec, _ = cv2.solvePnPRansac(
-        objectPoints=points_3D,
-        imagePoints=points_2D,
-        cameraMatrix=intrinsics,
-        distCoeffs=np.zeros((4, 1)),  # assume no distortion
-        flags=0,
-        rvec=best_detection.homography,
-    )
-
-    camera_tform_fiducial = np.eye(4)
-    rotation_matrix = cv2.Rodrigues(rvec)[0]
-    camera_tform_fiducial[:3, :3] = rotation_matrix
-    camera_tform_fiducial[:3, 3] = tvec.squeeze() / 1000
-
-    body_tform_fiducial = body_tform_camera @ camera_tform_fiducial
-
     # create frame frame_transformer object
     global world_object_client
     world_object_client.set_instance(
         robot.ensure_client(WorldObjectClient.default_service_name)
     )
-    ft.FrameTransformer()
+    global frame_transformer
+    frame_transformer.set_instance(ft.FrameTransformer())
     frame_name = ft.VISUAL_SEED_FRAME_NAME
 
-    # correct for turn
-    body_tform_fiducial[:3, :3] = body_tform_fiducial[:3, :3] @ np.asarray(
-        [[0, 1, 0], [0, 0, -1], [-1, 0, 0]]
-    )
-    fiducial_tform_body = np.linalg.inv(body_tform_fiducial)
+    # create the apriltag (fiducial) detector
+    tag_id = config["pre_scanned_graphs"]["base_fiducial_id"]
+    options = apriltag.DetectorOptions(families="tag36h11", refine_pose=True, refine_edges=True, refine_decode=True)
+    detector = apriltag.Detector(options)
+
+    set_gripper(True)
+    image_tuples_color = get_all_images_greyscale(auto_rotate=False)
+    image_tuples_depth = get_all_images_depth(auto_rotate=False)
+
+    fiducial_tform_body_init = detect_best_apriltag(tag_id, image_tuples_color, image_tuples_depth, detector,
+                                                    vis_block=vis_block)
+    likely_tag_pose = Pose3D.from_matrix(fiducial_tform_body_init).inverse()
+
+    # set gripper to open to capture images from that camera as well
+    gaze(likely_tag_pose, BODY_FRAME_NAME, gripper_open=True)
+
+    depth_image_response, color_image_response = get_camera_rgbd(in_frame='image')
+    image_color, response_color = color_image_response
+    image_gray = cv2.cvtColor(image_color, cv2.COLOR_RGB2GRAY)
+    image_tuples_color = [(image_gray, response_color)]
+    image_tuples_depth = [depth_image_response]
+
+    fiducial_tform_body = detect_best_apriltag(tag_id, image_tuples_color, image_tuples_depth, detector,
+                                               vis_block=vis_block)
 
     # build the point cloud of the surrounding environment
     pcd_body = build_surrounding_point_cloud()
@@ -526,14 +593,15 @@ def localize_from_images(config: Config, vis_block: bool = False) -> str:
 
     frame_transformer.add_frame_tform_vision(frame_name, ground_tform_odom)
 
+    stow_arm(False)
     set_gripper(False)
     return frame_name
 
 
 def relocalize(
-    config: Config,
-    frame_name: str,
-    vis_block: bool = False,
+        config: Config,
+        frame_name: str,
+        vis_block: bool = False,
 ) -> None:
     """
     Given an existing location, update the localization based on the surrounding point cloud.
@@ -587,8 +655,8 @@ def relocalize(
 
 
 def point_cloud_from_camera_captures(
-    depth_images: list[(np.ndarray, image_pb2.ImageResponse)],
-    frame_relative_to: str = BODY_FRAME_NAME,
+        depth_images: list[(np.ndarray, image_pb2.ImageResponse)],
+        frame_relative_to: str = BODY_FRAME_NAME,
 ) -> PointCloud:
     """
     Given a list of (depth_image, ImageResponse), compute the combined point cloud relative to the specified frame.
@@ -611,16 +679,17 @@ def point_cloud_from_camera_captures(
 
 
 def frame_coordinate_from_depth_image(
-    depth_image: np.ndarray,
-    depth_response: ImageResponse,
-    pixel_coordinatess: np.ndarray,
-    frame_name: str,
+        depth_image: np.ndarray,
+        depth_response: ImageResponse,
+        pixel_coordinatess: np.ndarray,
+        frame_name: str,
+        vis_block: bool = False,
 ) -> np.ndarray:
     """
     Compute a 3D coordinate from a depth image and pixel coordinate.
     :param depth_image: depth image, shape (H, W, 1)
     :param depth_response: associated ImageResponse
-    :param pixel_coordinatess: coordinates of the pixel to get the 3D coordinate of (format: height, width)
+    :param pixel_coordinatess: coordinates of the pixel to get the 3D coordinate of (format: width, height)
     :param frame_name: frame relative to which to express the 3D coordinate
     """
     assert pixel_coordinatess.ndim == 2 and pixel_coordinatess.shape[-1] == 2
@@ -628,6 +697,13 @@ def frame_coordinate_from_depth_image(
 
     # Get the valid depth measurements
     depth_image = depth_image.squeeze()
+
+    if vis_block:
+        depth_image_copy = depth_image.copy()
+        depth_image_copy[:, pixel_coordinatess[:, 0]] = 0
+        depth_image_copy[pixel_coordinatess[:, 1], :] = 0
+        vis.show_depth_image(depth_image_copy)
+
     valid_coords = np.argwhere(depth_image != 0)
     valid_depths = depth_image[depth_image != 0]
     target_depth = griddata(
@@ -650,7 +726,7 @@ def frame_coordinate_from_depth_image(
     pixel_coords_hom = np.concatenate((pixel_coordinatess, ones), axis=1)
     coords_camera_on_plane = pixel_coords_hom @ np.linalg.inv(intrinsics).T
     coords_camera_norm = (
-        coords_camera_on_plane / coords_camera_on_plane[:, -1, np.newaxis]
+            coords_camera_on_plane / coords_camera_on_plane[:, -1, np.newaxis]
     )
     coords_camera = coords_camera_norm * target_depth[:, np.newaxis]
 
@@ -661,9 +737,9 @@ def frame_coordinate_from_depth_image(
 
 
 def project_3D_to_2D(
-    depth_image_response: (np.ndarray, ImageResponse),
-    coordinates_in_frame: np.ndarray,
-    frame_name: str,
+        depth_image_response: (np.ndarray, ImageResponse),
+        coordinates_in_frame: np.ndarray,
+        frame_name: str,
 ) -> np.ndarray:
     depth_image, depth_response = depth_image_response
     camera_tform_body = camera_pose_from_ImageCapture(
@@ -690,10 +766,10 @@ def project_3D_to_2D(
 
 
 def select_points_from_bounding_box(
-    depth_image_response: (np.ndarray, ImageResponse),
-    bboxes: list[BBox],
-    frame_name: str,
-    vis_block: bool = False,
+        depth_image_response: (np.ndarray, ImageResponse),
+        bboxes: list[BBox],
+        frame_name: str,
+        vis_block: bool = False,
 ) -> (np.ndarray, np.ndarray):
     """
     Given a depth response, and a couple bounding boxes, compute (1) the point cloud in the given frame_name, and return
