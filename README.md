@@ -178,25 +178,14 @@ We provide detailed results here.
 ![experiments_drawers](https://spot-compose.github.io/static/images/drawers_sankey.png)
 
 # TODO :soon:
-- [X] ~~Add 3D Point Cloud Mosaicking~~
-- [X] ~~Add Support For [EVA](https://github.com/cambridgeltl/eva)~~
-- [ ] Add usage on Predicted Scene Graphs
-- [ ] Add scene graph alignment of local 3D scenes to prior 3D maps
-- [ ] Add overlapping scene finder with a traditional retrieval method (FPFH + VLAD + KNN)
+- [ ] Finish Documentation
 
 
 # BibTeX :pray:
 ```
-@article{sarkar2023sgaligner,
-      title={SGAligner : 3D Scene Alignment with Scene Graphs}, 
-      author={Sayan Deb Sarkar and Ondrej Miksik and Marc Pollefeys and Daniel Barath and Iro Armeni},
-      journal={Proceedings of the IEEE International Conference on Computer Vision (ICCV)},
-      year={2023}
+@article{lemke2024spotcompose,
+  author    = {Lemke, Oliver and Bauer, Zuria and Zurbr\"{u}gg, Ren\'{e} and Engelmann, Francis and Blum, Hermann},
+  title     = {Spot-Compose: A Framework for Open-Vocabulary Object Retrieval and Drawer Manipulation in Point Clouds},
+  year      = {2024},
 }
 ```
-# Acknowledgments :recycle:
-In this project we use (parts of) the official implementations of the following works and thank the respective authors for open sourcing their methods: 
-
-- [SceneGraphFusion](https://github.com/ShunChengWu/3DSSG) (3RScan Dataloader)
-- [GeoTransformer](https://github.com/qinzheng93/GeoTransformer) (Registration)
-- [MCLEA](https://github.com/lzxlin/MCLEA) (Alignment)
