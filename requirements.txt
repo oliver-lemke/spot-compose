@@ -13,7 +13,7 @@ bosdyn-choreography-protos==3.3.0
 bosdyn-client==3.3.0
 bosdyn-core==3.3.0
 bosdyn-mission==3.3.0
-black==24.2.0
+black==24.3.0
 isort==5.12.0
 pylint==2.17.5
 open3d==0.16.0

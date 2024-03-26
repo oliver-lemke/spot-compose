@@ -8,8 +8,6 @@ import numpy as np
 
 from bosdyn.api.image_pb2 import ImageResponse
 from bosdyn.client import Sdk
-from scipy.spatial.transform import Rotation
-
 from robot_utils.advanced_movement import pull, push
 from robot_utils.base import ControlFunction, take_control_with_function
 from robot_utils.basic_movements import carry, gaze, move_arm, move_body, stow_arm
@@ -21,9 +19,11 @@ from robot_utils.video import (
     get_rgb_pictures,
     localize_from_images,
     project_3D_to_2D,
-    select_points_from_bounding_box, relocalize,
+    relocalize,
+    select_points_from_bounding_box,
 )
 from scipy.spatial import ConvexHull
+from scipy.spatial.transform import Rotation
 from sklearn.cluster import DBSCAN, KMeans
 from utils import recursive_config, vis
 from utils.camera_geometry import plane_fitting_open3d
@@ -64,6 +64,7 @@ SPLIT_THRESH = 1.0
 MIN_PAIRWISE_DRAWER_DISTANCE = 0.1
 ITEMS = ["deer toy", "small clock", "headphones", "watch", "highlighter", "red bottle"]
 
+
 class _DynamicDrawers(ControlFunction):
     def __call__(
         self,
@@ -81,13 +82,18 @@ class _DynamicDrawers(ControlFunction):
         )
         print(f"{start_pose=}")
 
-
         camera_add_pose = Pose3D(CAMERA_ADD_COORDS)
         camera_add_pose.set_rot_from_rpy((0, CAMERA_ANGLE, 0), degrees=True)
 
-        handle_poses = [Pose3D((-0.05, -1.45, 0.52)), Pose3D((-0.05, -1.45, 0.33)), Pose3D((-0.05, -1.45, 0.14))]
+        handle_poses = [
+            Pose3D((-0.05, -1.45, 0.52)),
+            Pose3D((-0.05, -1.45, 0.33)),
+            Pose3D((-0.05, -1.45, 0.14)),
+        ]
         for handle_pose in handle_poses:
-            handle_pose.rot_matrix = Rotation.from_euler("z", 180, degrees=True).as_matrix()
+            handle_pose.rot_matrix = Rotation.from_euler(
+                "z", 180, degrees=True
+            ).as_matrix()
 
         ###############################################################################
         ################################ ARM COMMANDS #################################
