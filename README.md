@@ -175,7 +175,7 @@ You may have to adjust the addresses in the scripts to fit your setup.
 On the workstation run `./shells/ubuntu_routing.sh` (or `./shells/mac_routing.sh` depending on your workstation operating system).
 
 ### NUC Networking
-First, ssh into the NUC, followed by running, `./robot_routing.sh` to configure the NUC as a network bridge.
+First, ssh into the NUC, followed by running `./robot_routing.sh` to configure the NUC as a network bridge.
 
 
 
