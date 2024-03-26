@@ -19,12 +19,12 @@ Spot-Compose presents a comprehensive framework for integration of modern machin
 [[Paper]() (coming soon!)]
 
 
-## News :newspaper:
+# News :newspaper:
 
 * **Coming soon**: release on arXiv.
 * **13. March 2024**: Code released.
 
-## Code Structure :clapper:
+# Code Structure :clapper:
 
 
 
@@ -69,8 +69,7 @@ spot-compose/
 │   ├── aligned_point_clouds/          # Prescan point clouds aligned with extracted autowalk clouds
 │   └── masked/                        # Mask3D output given aligned point clouds
 ├── configs/                           # configs
-│   ├── base.yaml                      # Uppermost level of recursive configurations
-│   └── user.yaml                      # User-level configurations
+│   └── config.yaml                    # Uppermost level of recursive configurations (see configs sections for more info)
 ├── shells/
 │   ├── estop.sh                       # E-Stop script
 │   ├── mac_routing.sh                 # Set up networking on workstation Mac
@@ -83,7 +82,7 @@ spot-compose/
 └── LICENSE
 ```
 
-### Dependencies :memo:
+## Dependencies :memo:
 
 The main dependencies of the project are the following:
 ```yaml
@@ -98,10 +97,10 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Downloads :droplet:
+## Downloads :droplet:
 The pre-trained model weigts for Yolov-based drawer detection is available [here](https://drive.google.com/file/d/11axGmSgb3zmUtq541hH2TCZ54DwTEiWi/view?usp=drive_link).
 
-### Docker Containers :whale:
+## Docker Containers :whale:
 Docker containers are used to run external neural networks. This allows for easy modularity when working with multiple methods, without tedious setup.
 Each docker container funtions as a self-contained server, answering requests. Please refer to `utils/docker_communication.py` for your own custon setup, or to the respective files in `utils/` for existing containers.
 
@@ -121,19 +120,64 @@ When you are inside the container shell, simply run the `Start Command` to start
 | DrawerDetection | [craiden/yolodrawer:v1.0](https://hub.docker.com/layers/craiden/yolodrawer/v1.0/images/sha256-2b0e99d77dab40eb6839571efec9789d6c0a25040fbb5c944a804697e73408fb?context=repo) | ```docker run -p 5004:5004 --gpus all -it craiden/yolodrawer:v1.0``` |           ```python3 app.py```            |
 
 
+# Detailed Setup Instructions
+## Point Clouds :cloud:
+For this project, we require two point clouds for navigation (low resolution, captured by Spot) and segmentation (high resolution, capture by commodity scanner).
+The former is used for initial localization and setting the origin at the apriltag fiducial. The latter is used for accurate segmentation.
+
+### Low-Resolution Spot Point Cloud
+To capture the point cloud please position Spot in front of your AptrilTag and start the [autowalk](https://support.bostondynamics.com/s/article/Getting-Started-with-Autowalk).
+Zip the resulting and data and unzip it into the `data/autowalk` folder.
+Fill in the name of the unzipped folder in the config file under `pre_scanned_graphs/low_res`.
+
+### High-Resolution Commodity Point Cloud
+To capture the point cloud we use the [3D Scanner App](https://apps.apple.com/us/app/3d-scanner-app/id1419913995) on iOS.
+Make sure the fiducial is visible during the scan for initialization.
+Once the scan is complete, click on `Share` and export two things:
+
+1. `All Data`
+2. `Point Cloud/PLY` with the `High Density` setting enabled and `Z axis up` disabled
+
+Unzip the `All Data` zip file into the `data/prescans` folder. Rename the point cloud to `pcd.ply` and copy it into the folder, such that the resulting directory structure looks like the following:
+
+```
+prescans/
+├── all_data_folder/
+│   ├── annotations.json
+│   ├── export.obj
+│   ├── export_refined.obj
+│   ├── frame_00000.jpg
+│   ├── frame_00000.json
+│   ├── ...
+│   ├── info.json
+│   ├── pcd.ply.json
+│   ├── textured_output.jpg
+│   ├── textured_output.mtl
+│   ├── textured_output.obj
+│   ├── thumb_00000.jpg                
+│   └── world_map.arkit
+```
+
+Finally, fill in the name of your `all_data_folder` in the config file under `pre_scanned_graphs/high_res`.
+
+## Networking :globe_with_meridians:
+
+
+## Config :gear:
 
 
 
-## Benchmark :chart_with_upwards_trend:
+
+# Benchmark :chart_with_upwards_trend:
 We provide detailed results here.
 
-### Open-Vocabulary Object Retrieval
+## Open-Vocabulary Object Retrieval
 ![experiments_manipulation](https://spot-compose.github.io/static/images/grasping_sankey.png)
 
-### Dynamic Drawer Manipulation & Search
+## Dynamic Drawer Manipulation & Search
 ![experiments_drawers](https://spot-compose.github.io/static/images/drawers_sankey.png)
 
-## TODO :soon:
+# TODO :soon:
 - [X] ~~Add 3D Point Cloud Mosaicking~~
 - [X] ~~Add Support For [EVA](https://github.com/cambridgeltl/eva)~~
 - [ ] Add usage on Predicted Scene Graphs
@@ -141,7 +185,7 @@ We provide detailed results here.
 - [ ] Add overlapping scene finder with a traditional retrieval method (FPFH + VLAD + KNN)
 
 
-## BibTeX :pray:
+# BibTeX :pray:
 ```
 @article{sarkar2023sgaligner,
       title={SGAligner : 3D Scene Alignment with Scene Graphs}, 
@@ -150,7 +194,7 @@ We provide detailed results here.
       year={2023}
 }
 ```
-## Acknowledgments :recycle:
+# Acknowledgments :recycle:
 In this project we use (parts of) the official implementations of the following works and thank the respective authors for open sourcing their methods: 
 
 - [SceneGraphFusion](https://github.com/ShunChengWu/3DSSG) (3RScan Dataloader)
