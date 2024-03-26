@@ -103,18 +103,28 @@ The pre-trained model weigts for Yolov-based drawer detection is available [here
 
 ### Docker Containers :whale:
 
+|      Name       |                                                                                   Link                                                                                   |                             Run Command                              |               Start Command               |
+|:---------------:|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:--------------------------------------------------------------------:|:-----------------------------------------:|
+|    AnyGrasp     | [craiden/graspnet:v1.0](https://hub.docker.com/layers/craiden/graspnet/v1.0/images/sha256-ec5663ce991415a51c34c00f2ea6f8ab9303a88e6ac27d418df2193c6ab40707?context=repo) |  ```docker run -p 5000:5000 --gpus all -it craiden/graspnet:v1.0```  |           ```python3 app.py```            |
+|   OpenMask3D    | [craiden/openmask:v1.0](https://hub.docker.com/layers/craiden/openmask/v1.0/images/sha256-023e04ebecbfeb62729352a577edc41a7f12dc4ce780bfa8b8e81eb54ffe77f7?context=repo) |  ```docker run -p 5001:5001 --gpus all -it craiden/openmask:v1.0```  |           ```python3 app.py```            |
+|     ViTPose     |  [craiden/vitpose:v1.0](https://hub.docker.com/layers/craiden/vitpose/v1.0/images/sha256-43a702300a0fffa2fb51fd3e0a6a8d703256ed2d507ac0ba6ec1563b7aee6ee7?context=repo)  |  ```docker run -p 5002:5002 --gpus all -it craiden/vitpose:v1.0```   | ```easy_ViTPose/venv/bin/python app.py``` |
+| DrawerDetection | [craiden/yolodrawer:v1.0](https://hub.docker.com/layers/craiden/yolodrawer/v1.0/images/sha256-2b0e99d77dab40eb6839571efec9789d6c0a25040fbb5c944a804697e73408fb?context=repo) | ```docker run -p 5004:5004 --gpus all -it craiden/yolodrawer:v1.0``` |           ```python3 app.py```            |
+
+
+
+
 
 ## Benchmark :chart_with_upwards_trend:
 We provide detailed results and comparisons here.
 
 ### 3D Scene Graph Alignment (Node Matching)
-| Method | Mean Reciprocal Rank | Hits@1 | Hits@2 | Hits@3 | Hits@4 | Hits@5 |
-|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| [EVA](https://github.com/cambridgeltl/eva) | 0.867 | 0.790 | 0.884 | 0.938 | 0.963 | 0.977 | 
-| $\mathcal{P}$ | 0.884 | 0.835 | 0.886 | 0.921 | 0.938 | 0.951 |
-| $\mathcal{P}$ + $\mathcal{S}$ | 0.897 | 0.852 | 0.899 | 0.931 | 0.945 | 0.955 |
-| $\mathcal{P}$ + $\mathcal{S}$ + $\mathcal{R}$ | 0.911 | 0.861 | 0.916 | 0.947 | 0.961 | 0.970 |
-| SGAligner | 0.950 | 0.923 | 0.957 | 0.974 | 0.9823 | 0.987 |
+|                    Method                     | Mean Reciprocal Rank | Hits@1 | Hits@2 | Hits@3 | Hits@4 | Hits@5 |
+|:---------------------------------------------:|:--------------------:|:------:|:------:|:------:|:------:|:------:|
+|  [EVA](https://github.com/cambridgeltl/eva)   |        0.867         | 0.790  | 0.884  | 0.938  | 0.963  | 0.977  | 
+|                 $\mathcal{P}$                 |        0.884         | 0.835  | 0.886  | 0.921  | 0.938  | 0.951  |
+|         $\mathcal{P}$ + $\mathcal{S}$         |        0.897         | 0.852  | 0.899  | 0.931  | 0.945  | 0.955  |
+| $\mathcal{P}$ + $\mathcal{S}$ + $\mathcal{R}$ |        0.911         | 0.861  | 0.916  | 0.947  | 0.961  | 0.970  |
+|                   SGAligner                   |        0.950         | 0.923  | 0.957  | 0.974  | 0.9823 | 0.987  |
 
 ### 3D Point Cloud Registration
 | Method | CD | RRE | RTE | FMR | RR |
