@@ -62,3 +62,6 @@ servers:
     ip: "192.168.1.186"
     port: 5004
     route: "yolodrawer/predict"
+
+robot_parameters:
+    verbose: False
