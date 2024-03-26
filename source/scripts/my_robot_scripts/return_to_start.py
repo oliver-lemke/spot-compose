@@ -37,7 +37,7 @@ class _MovementFunction(ControlFunction):
         *args,
         **kwargs,
     ) -> str:
-        ODOM_FIRST = True
+        ODOM_FIRST = False
 
         ft.FrameTransformer()
         if ODOM_FIRST:

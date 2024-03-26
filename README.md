@@ -1,141 +1,149 @@
-# DeepLearningInit
-This is a repository for initializing deep learning projects.
+<div align='center'>
+<h2 align="center"> Spot-Compose: A Framework for Open-Vocabulary Object Retrieval and
+Drawer Manipulation in Point Clouds </h2>
+<h3 align="center">Under Review</h3>
 
-# Setup
-Python Version 3.8
+<a href="https://oliver-lemke.github.io/">Oliver Lemke</a><sup>1</sup>, <a href="https://zuriabauer.com/">Zuria Bauer</a><sup>1</sup>, <a href="https://scholar.google.com/citations?user=feJr7REAAAAJ&hl=en">René Zurbrügg</a><sup>1</sup>, <a href="https://people.inf.ethz.ch/marc.pollefeys/">Marc Pollefeys</a><sup>1,2</sup>, <a href="https://francisengelmann.github.io/">Francis Engelmann</a><sup>1</sup>, <a href="https://hermannblum.net/">Hermann Blum</a><sup>1</sup>
 
-<!--
-## Conda
+<sup>1</sup>ETH Zurich <sup>2</sup>Microsoft Mixed Reality & AI Labs
+
+Spot-Compose presents a comprehensive framework for integration of modern machine perception techniques with Spot, showing experiments with object grasping and dynamic drawer manipulation.
+
+
+![teaser](https://spot-compose.github.io/static/images/teaser.png)
+
+
+</div>
+
+[[Project Webpage](https://spot-compose.github.io/)]
+[[Paper]() (coming soon!)]
+
+
+## News :newspaper:
+
+* **Coming soon**: release on arXiv.
+* **13. March 2024**: Code released.
+
+## Code Structure :clapper:
+
+
+
 ```
-# create conda environment
-conda create --name spot-mask-3d
-conda activate spot-mask-3d
-
-sudo apt-get update && sudo apt upgrade -y && sudo apt autoremove
-sudo apt-get install -y cdo nco gdal-bin libgdal-dev
-python3 -m pip install --upgrade pip setuptools wheel
-
-conda install numpy==1.24.3
-# gdalinfo --version, check whether installs
-python -m pip install --upgrade gdal==<version>
-
-# install gdal via conda
-conda install -c conda-forge libgdal
-conda install -c conda-forge gdal
-conda install tiledb=2.2
-conda install poppler
-
-conda env update -f environment.yml
-
-gdalinfo --version
+spot-compose/
+├── source/                            # All source code
+│   ├── utils/                         # General utility functions
+│   │   ├── coordinates.py             # Coordinate calculations (poses, translations, etc.)
+│   │   ├── docker_communication.py    # Communication with docker servers
+│   │   ├── environment.py             # API keys, env variables
+│   │   ├── files.py                   # File system handling
+│   │   ├── graspnet_interface.py      # Communication with graspnet server
+│   │   ├── importer.py                # Config-based importing
+│   │   ├── mask3D_interface.py        # Handling of Mask3D instance segmentation
+│   │   ├── point_clouds.py            # Point cloud computations
+│   │   ├── recursive_config.py        # Recursive configuration files
+│   │   ├── scannet_200_labels.py      # Scannet200 labels (for Mask3D)
+│   │   ├── singletons.py              # Singletons for global unique access
+│   │   ├── user_input.py              # Handle user input
+│   │   ├── vis.py                     # Handle visualizations
+│   │   ├── vitpose_interface.py       # Handle communications with VitPose docker server
+│   │   └── zero_shot_object_detection.py # Object detections from images
+│   ├── robot_utils/                   # Utility functions specific to spot functionality
+│   │   ├── base.py                    # Framework and wrapper for all scripts
+│   │   ├── basic_movements.py         # Basic robot commands (moving body / arm, stowing, etc.)
+│   │   ├── advanced_movements.py      # Advanced robot commands (planning, complex movements)
+│   │   ├── frame_transformer.py       # Simplified transformation between frames of reference
+│   │   ├── video.py                   # Handle actions that require access to robot cameras
+│   │   └── graph_nav.py               # Handle actions that require access to GraphNav service
+│   └── scripts/
+│       ├── my_robot_scripts/
+│       │   ├── estop_nogui.py         # E-Stop
+│       │   └── ...                    # Other action scripts
+│       └── point_cloud_scripts/
+│           ├── extract_point_cloud.py # Extract point cloud from Boston Dynamics autowalk
+│           ├── full_align.py          # Align autowalk and scanned point cloud
+│           └── vis_ply_point_clouds_with_coordinates.py # Visualize aligned point cloud
+├── data/
+│   ├── autowalk/                      # Raw autowalk data
+│   ├── point_clouds/                  # Extracted point clouds from autowalks
+│   ├── prescans/                      # Raw prescan data
+│   ├── aligned_point_clouds/          # Prescan point clouds aligned with extracted autowalk clouds
+│   └── masked/                        # Mask3D output given aligned point clouds
+├── configs/                           # configs
+│   ├── base.yaml                      # Uppermost level of recursive configurations
+│   └── user.yaml                      # User-level configurations
+├── shells/
+│   ├── estop.sh                       # E-Stop script
+│   ├── mac_routing.sh                 # Set up networking on workstation Mac
+│   ├── ubuntu_routing.sh              # Set up networking on workstation Ubuntu
+│   ├── robot_routing.sh               # Set up networking on NUC
+│   └── start.sh                       # Convenient script execution
+├── README.md                          # Project documentation
+├── requirements.txt                   # pip requirements file
+├── pyproject.toml                     # Formatter and linter specs
+└── LICENSE
 ```
 
-## Installing GDAL
-First, install the development headers of libgal-dev
-```
-sudo apt-get install libgdal-dev
-export CPLUS_INCLUDE_PATH=/usr/include/gdal
-export C_INCLUDE_PATH=/usr/include/gdal
-```
+### Dependencies :memo:
 
-## Installing other dependencies
--->
-
-To install required packages run
+The main dependencies of the project are the following:
+```yaml
+python: 3.8
 ```
+You can set up a pip environment as follows :
+```bash
+git clone --recurse-submodules git@github.com:oliver-lemke/spot-compose.git
+cd spot-compose
+virtualenv --python="/usr/bin/python3.8" "venv/"
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Overall Setup
-Python Version 3.8
-<pre>
-project_root_dir/                                   <--- root directory of the project
-├── source/                                         <--- all code stored here
-│   ├── main.py                                     <--- contains the main method
-│   ├── trainer.py                                  <--- contains the trainer class responsible for all trainin 
-│   │   ├── datasets/
-│   │   │   ├── dataset_template.py                 <--- template for how to write a dataset
-│   │   │   └── ...
-│   ├── models/
-│   │   ├── __init__.py                             <--- contains the model_factory which is responsible for building a model
-│   │   ├── template_model.py                       <--- template for how a model should look like
-│   │   ├── specialized_networks/                   <--- use this folder for special changes to the network
-│   │   │   ├── special_example.py                  <--- example for such a network change
-│   │   │   └── ...
-│   ├── scripts/                                    <--- contains scripts to be run independently (e.g. for setup)
-│   │   ├── setup_script.py                         <--- one script do the entire setup, does not do user.yaml config
-│   │   └── ...
-│   ├── utils/
-│   │   ├── configs.py                              <--- ease of use class for accessing config
-│   │   ├── eval_metrics.py                         <--- additional metrics to keep track of
-│   │   ├── logs.py                                 <--- project-specific logging configuration
-│   │   └── ...
-│   └── ...
-│
-├── configs/
-│   ├── base.yaml                                   <--- base config file used for changing the actual project
-│   ├── template.yaml                               <--- template config for setting up user.yaml
-│   └── user.yaml                                   <--- personal config file to set up config for this specific workspace
-│
-├── data/                                           <--- contains any used datasets
-│   ├── README.md                                   <--- markdown file which explains the data and structure
-│   └── ...
-│
-├── logs/                                           <--- contains logs
-│   └── ...
-│
-├── pretrained_weights/                             <--- contains model_weights
-│   ├── template_weights/                           <--- template configuration
-│   │   ├── weights.pth                             <--- actual weights for the model
-│   │   └── pretrained_metadata.pickle              <--- metadata (config used for pretraining)
-│
-├── output/                                         <--- any model output
-│   ├── template_output/
-│   │   ├── checkpoints/
-│   │   │   ├── weights.pth                         <--- model weights at checkpoint
-│   │   │   └── optimizer.pth                       <--- optimizer state at checkpoint
-│   │   ├── best_checkpoints/
-│   │   └── tensorboard/                            <--- tensorboard directory
-│   │   └── wandb/                                  <--- wandb directory
-│
-├── cache/                                          <--- any local caching that is needed
-│   └── ...
-│
-├── .github/                                        
-│   ├── workflows/                                  <--- github actions 
-│   │   ├── black.yml
-│   │   ├── isort.yml
-│   │   ├── pylint.yml
-│   │   └── ...
-│
-├── .gitignore                                      <--- global .gitignore
-├── requirements.txt
-└── README.md
-</pre>
+### Downloads :droplet:
+The pre-trained model weigts for Yolov-based drawer detection is available [here](https://drive.google.com/file/d/11axGmSgb3zmUtq541hH2TCZ54DwTEiWi/view?usp=drive_link).
 
-# GitHub Actions
-This project uses [black](https://pypi.org/project/black/) and
-[isort](https://pypi.org/project/isort/) for formatting, and
-[pylint](https://pypi.org/project/pylint/) for linting.
+### Docker Containers :whale:
 
-## PyCharm Setup
-1. Download the [File Watchers](https://www.jetbrains.com/help/pycharm/using-file-watchers.html)
-Plugin
-2. Under Settings > Tools > File Watcher > + > \<custom>: setup a new watcher for each
-   1. black
-      - Name: Black Watcher
-      - File type: Python
-      - Scope: Project Files
-      - Program: $PyInterpreterDirectory$/black
-      - Arguments: $FilePath$
-      - Output paths to refresh: $FilePath$
-      - Working directory: $ProjectFileDir$
-      - Additional: as wished
-   2. isort
-      - Name: iSort Watcher
-      - Program: $PyInterpreterDirectory$/isort
-      - Arguments: $FilePath$ --sp $ContentRoot$/.style/.isort.cfg --settings-path $ProjectFileDir$/pyproject.toml
-   3. pylint
-      - Name: PyLint Watcher
-      - Program: $PyInterpreterDirectory$/pylint
-      - Arguments: --msg-template="$FileDir$/{path}:{line}:{column}:{C}:({symbol}){msg}" $FilePath$ --rcfile $ProjectFileDir$/pyproject.toml
+
+## Benchmark :chart_with_upwards_trend:
+We provide detailed results and comparisons here.
+
+### 3D Scene Graph Alignment (Node Matching)
+| Method | Mean Reciprocal Rank | Hits@1 | Hits@2 | Hits@3 | Hits@4 | Hits@5 |
+|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| [EVA](https://github.com/cambridgeltl/eva) | 0.867 | 0.790 | 0.884 | 0.938 | 0.963 | 0.977 | 
+| $\mathcal{P}$ | 0.884 | 0.835 | 0.886 | 0.921 | 0.938 | 0.951 |
+| $\mathcal{P}$ + $\mathcal{S}$ | 0.897 | 0.852 | 0.899 | 0.931 | 0.945 | 0.955 |
+| $\mathcal{P}$ + $\mathcal{S}$ + $\mathcal{R}$ | 0.911 | 0.861 | 0.916 | 0.947 | 0.961 | 0.970 |
+| SGAligner | 0.950 | 0.923 | 0.957 | 0.974 | 0.9823 | 0.987 |
+
+### 3D Point Cloud Registration
+| Method | CD | RRE | RTE | FMR | RR |
+|:-:|:-:|:-:|:-:|:-:|:-:|
+| [GeoTr](https://github.com/qinzheng93/GeoTransformer) | 0.02247	| 1.813 | 2.79 | 98.94 | 98.49 |
+| Ours, K=1 | 0.01677 | 1.425 | 2.88 | 99.85 | 98.79 |
+| Ours, K=2 | 0.01111 | 1.012 | 1.67 | 99.85 | 99.40 |
+| Ours, K=3 | 0.01525 | 1.736 | 2.55 | 99.85 | 98.81 | 
+
+## TODO :soon:
+- [X] ~~Add 3D Point Cloud Mosaicking~~
+- [X] ~~Add Support For [EVA](https://github.com/cambridgeltl/eva)~~
+- [ ] Add usage on Predicted Scene Graphs
+- [ ] Add scene graph alignment of local 3D scenes to prior 3D maps
+- [ ] Add overlapping scene finder with a traditional retrieval method (FPFH + VLAD + KNN)
+
+
+## BibTeX :pray:
+```
+@article{sarkar2023sgaligner,
+      title={SGAligner : 3D Scene Alignment with Scene Graphs}, 
+      author={Sayan Deb Sarkar and Ondrej Miksik and Marc Pollefeys and Daniel Barath and Iro Armeni},
+      journal={Proceedings of the IEEE International Conference on Computer Vision (ICCV)},
+      year={2023}
+}
+```
+## Acknowledgments :recycle:
+In this project we use (parts of) the official implementations of the following works and thank the respective authors for open sourcing their methods: 
+
+- [SceneGraphFusion](https://github.com/ShunChengWu/3DSSG) (3RScan Dataloader)
+- [GeoTransformer](https://github.com/qinzheng93/GeoTransformer) (Registration)
+- [MCLEA](https://github.com/lzxlin/MCLEA) (Alignment)

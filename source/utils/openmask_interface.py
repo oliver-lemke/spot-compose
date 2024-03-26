@@ -146,5 +146,5 @@ def visualize():
 
 
 if __name__ == "__main__":
-    # get_mask_clip_features()
-    visualize()
+    get_mask_clip_features()
+    # visualize()

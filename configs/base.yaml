@@ -15,11 +15,11 @@ robot_parameters:
 device: "cuda"
 
 pre_scanned_graphs:
-  base_fiducial_id: 50
+  base_fiducial_id: 52
   graph_frame_name_prefix: "filtered_fiducial_"
   floor: -0.1
-  low_res: "24-03-14"
-  high_res: "24-03-14"
+  low_res: "24-03-26"
+  high_res: "24-03-26"
   masked: ""
 
 # paths are relative from project_root_directory
