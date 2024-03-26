@@ -351,9 +351,7 @@ def search_drawer(
         for ref_pose in ref_add_poses:
             move_arm(handle_pose @ ref_pose, frame_name)
             depth_response, color_response = get_camera_rgbd(
-                in_frame="image",
-                vis_block=False,
-                cut_to_size=False
+                in_frame="image", vis_block=False, cut_to_size=False
             )
             predictions = drawer_predict(
                 color_response[0], config, input_format="bgr", vis_block=True
