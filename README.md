@@ -178,8 +178,18 @@ On the workstation run `./shells/ubuntu_routing.sh` (or `./shells/mac_routing.sh
 First, ssh into the NUC, followed by running `./robot_routing.sh` to configure the NUC as a network bridge.
 
 
-
 ## Config :gear:
+The base config file can be found under configs/config.yaml.
+However, our config system allows for dynamically extending and inheriting from configs, if you have different setups on different workstations.
+To do this, simply specify the bottom-most file in the inheritance tree when creating the `Config()` object. Each config file specifies the file it inherits from in an `extends` field.
+
+In our example, the overwriting config is specified in `configs/template_extension.yaml`, meaning the inheritance graph looks like:
+```
+template_extension.yaml ---overwrites---> config.yaml
+```
+In this example, we would specify `Config(file='configs/template_extension.yaml')`, which then overwrites all the config files it extends.
+
+However, this functionality is not necessary for this project to work, so simply working with the `config.yaml` file as you are used to is supported by default.
 
 
 
