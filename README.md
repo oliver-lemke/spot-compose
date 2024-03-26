@@ -162,6 +162,22 @@ Finally, fill in the name of your `all_data_folder` in the config file under `pr
 
 ## Networking :globe_with_meridians:
 
+In our project setup, we connect the robot via a NUC on Spot's back. The NUC is connected to Spot via cable, and to a router via WiFi.
+
+<p align="center">
+    <img src="data/images/network.drawio.png" width="500">
+</p>
+
+However, since the robot is not directly accessible to the router, we have to (a) tell the workstation where to send information to the robot, and (b) tell the NUC to work as a bridge.
+You may have to adjust the addresses in the scripts to fit your setup.
+
+### Workstation Networking
+On the workstation run `./shells/ubuntu_routing.sh` (or `./shells/mac_routing.sh` depending on your workstation operating system).
+
+### NUC Networking
+First, ssh into the NUC, followed by running, `./robot_routing.sh` to configure the NUC as a network bridge.
+
+
 
 ## Config :gear:
 
