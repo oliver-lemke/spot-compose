@@ -102,6 +102,16 @@ pip install -r requirements.txt
 The pre-trained model weigts for Yolov-based drawer detection is available [here](https://drive.google.com/file/d/11axGmSgb3zmUtq541hH2TCZ54DwTEiWi/view?usp=drive_link).
 
 ### Docker Containers :whale:
+Docker containers are used to run external neural networks. This allows for easy modularity when working with multiple methods, without tedious setup.
+Each docker container funtions as a self-contained server, answering requests. Please refer to `utils/docker_communication.py` for your own custon setup, or to the respective files in `utils/` for existing containers.
+
+To run the respective docker container, please first pull the desired image via 
+```bash
+docker pull [Link]
+```
+Once docker has finished pulling the image, you can start a container via the `Run Command`.
+When you are inside the container shell, simply run the `Start Command` to start the server.
+
 
 |      Name       |                                                                                   Link                                                                                   |                             Run Command                              |               Start Command               |
 |:---------------:|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:--------------------------------------------------------------------:|:-----------------------------------------:|
@@ -115,24 +125,13 @@ The pre-trained model weigts for Yolov-based drawer detection is available [here
 
 
 ## Benchmark :chart_with_upwards_trend:
-We provide detailed results and comparisons here.
+We provide detailed results here.
 
-### 3D Scene Graph Alignment (Node Matching)
-|                    Method                     | Mean Reciprocal Rank | Hits@1 | Hits@2 | Hits@3 | Hits@4 | Hits@5 |
-|:---------------------------------------------:|:--------------------:|:------:|:------:|:------:|:------:|:------:|
-|  [EVA](https://github.com/cambridgeltl/eva)   |        0.867         | 0.790  | 0.884  | 0.938  | 0.963  | 0.977  | 
-|                 $\mathcal{P}$                 |        0.884         | 0.835  | 0.886  | 0.921  | 0.938  | 0.951  |
-|         $\mathcal{P}$ + $\mathcal{S}$         |        0.897         | 0.852  | 0.899  | 0.931  | 0.945  | 0.955  |
-| $\mathcal{P}$ + $\mathcal{S}$ + $\mathcal{R}$ |        0.911         | 0.861  | 0.916  | 0.947  | 0.961  | 0.970  |
-|                   SGAligner                   |        0.950         | 0.923  | 0.957  | 0.974  | 0.9823 | 0.987  |
+### Open-Vocabulary Object Retrieval
+![experiments_manipulation](https://spot-compose.github.io/static/images/grasping_sankey.png)
 
-### 3D Point Cloud Registration
-| Method | CD | RRE | RTE | FMR | RR |
-|:-:|:-:|:-:|:-:|:-:|:-:|
-| [GeoTr](https://github.com/qinzheng93/GeoTransformer) | 0.02247	| 1.813 | 2.79 | 98.94 | 98.49 |
-| Ours, K=1 | 0.01677 | 1.425 | 2.88 | 99.85 | 98.79 |
-| Ours, K=2 | 0.01111 | 1.012 | 1.67 | 99.85 | 99.40 |
-| Ours, K=3 | 0.01525 | 1.736 | 2.55 | 99.85 | 98.81 | 
+### Dynamic Drawer Manipulation & Search
+![experiments_drawers](https://spot-compose.github.io/static/images/drawers_sankey.png)
 
 ## TODO :soon:
 - [X] ~~Add 3D Point Cloud Mosaicking~~
