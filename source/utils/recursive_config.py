@@ -5,6 +5,8 @@ import os
 
 import yaml
 
+current_file_path = __file__
+
 
 class Config:
     """
@@ -56,8 +58,9 @@ class Config:
         self._config = load_recursive(file, [])
 
         if "project_root_dir" not in self._config:
-            cwd = os.getcwd()
-            project_root_dir = os.path.dirname(cwd)
+            project_root_dir = os.path.dirname(
+                os.path.dirname(os.path.dirname(current_file_path))
+            )
             self._config["project_root_dir"] = project_root_dir
 
         self._add_additional_info()

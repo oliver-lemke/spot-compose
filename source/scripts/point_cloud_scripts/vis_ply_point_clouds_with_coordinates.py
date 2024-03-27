@@ -29,7 +29,7 @@ def rotate_e(rpy: (float, float, float)) -> (np.ndarray, np.ndarray, np.ndarray)
 
 
 def main():
-    KNOB_COORDINATES_TOP = (0.23, -1.48, 0.3)
+    KNOB_COORDINATES_TOP = (0.62, -1.34, -0.1)
     RPY_KNOB = (0, 0, 0)
     option = 0
 

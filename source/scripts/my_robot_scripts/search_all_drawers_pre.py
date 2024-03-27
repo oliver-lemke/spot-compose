@@ -1,12 +1,8 @@
 # pylint: disable-all
 from __future__ import annotations
 
-import warnings
-from collections import defaultdict
+import time
 
-import numpy as np
-
-from bosdyn.api.image_pb2 import ImageResponse
 from bosdyn.client import Sdk
 from robot_utils.advanced_movement import pull, push
 from robot_utils.base import ControlFunction, take_control_with_function
@@ -14,26 +10,13 @@ from robot_utils.basic_movements import carry, gaze, move_arm, move_body, stow_a
 from robot_utils.frame_transformer import FrameTransformerSingleton
 from robot_utils.video import (
     GRIPPER_IMAGE_COLOR,
-    frame_coordinate_from_depth_image,
-    get_camera_rgbd,
     get_rgb_pictures,
     localize_from_images,
-    project_3D_to_2D,
     relocalize,
-    select_points_from_bounding_box,
 )
-from scipy.spatial import ConvexHull
 from scipy.spatial.transform import Rotation
-from sklearn.cluster import DBSCAN, KMeans
-from utils import recursive_config, vis
-from utils.camera_geometry import plane_fitting_open3d
-from utils.coordinates import Pose2D, Pose3D, average_pose3Ds, pose_distanced
-from utils.drawer_detection import drawer_handle_matches
-from utils.drawer_detection import predict_yolodrawer as drawer_predict
-from utils.importer import PointCloud
-from utils.object_detetion import BBox, Detection, Match
-from utils.openmask_interface import get_mask_points
-from utils.point_clouds import body_planning_mult_furthest
+from utils import recursive_config
+from utils.coordinates import Pose3D, pose_distanced
 from utils.recursive_config import Config
 from utils.singletons import (
     GraphNavClientSingleton,
@@ -62,7 +45,7 @@ CAMERA_ADD_COORDS = (-0.25, 0, 0.3)
 CAMERA_ANGLE = 55
 SPLIT_THRESH = 1.0
 MIN_PAIRWISE_DRAWER_DISTANCE = 0.1
-ITEMS = ["deer toy", "small clock", "headphones", "watch", "highlighter", "red bottle"]
+ITEMS = ["scissors"]
 
 
 class _DynamicDrawers(ControlFunction):
@@ -73,7 +56,6 @@ class _DynamicDrawers(ControlFunction):
         *args,
         **kwargs,
     ) -> str:
-        indices = (3, 4)
         config = recursive_config.Config()
 
         frame_name = localize_from_images(config)
@@ -85,10 +67,16 @@ class _DynamicDrawers(ControlFunction):
         camera_add_pose = Pose3D(CAMERA_ADD_COORDS)
         camera_add_pose.set_rot_from_rpy((0, CAMERA_ANGLE, 0), degrees=True)
 
+        photo_pose = Pose3D((0.12, -1.15, 0.54))
+        photo_pose.set_from_scipy_rotation(Rotation.from_euler("z", 180, degrees=True))
+        gaze(Pose3D((0.12, -1.15, 0.44)), frame_name)
+        time.sleep(1)
+
         handle_poses = [
-            Pose3D((-0.05, -1.45, 0.52)),
-            Pose3D((-0.05, -1.45, 0.33)),
-            Pose3D((-0.05, -1.45, 0.14)),
+            Pose3D((0.12, -1.34, 0.54)),
+            Pose3D((0.12, -1.35, 0.34)),
+            Pose3D((0.12, -1.32, 0.14)),
+            Pose3D((0.12, -0.96, 0.54)),
         ]
         for handle_pose in handle_poses:
             handle_pose.rot_matrix = Rotation.from_euler(
@@ -99,9 +87,13 @@ class _DynamicDrawers(ControlFunction):
         ################################ ARM COMMANDS #################################
         ###############################################################################
 
+        camera_add_pose_refinement_right = Pose3D((-0.35, -0.2, 0.15))
+        camera_add_pose_refinement_right.set_rot_from_rpy((0, 25, 35), degrees=True)
+
         detection_drawer_pairs = []
 
         carry()
+        item_detected = False
         for handle_pose in handle_poses:
             # if no handle is detected in the refinement, redo it from a different position
             body_pose = pose_distanced(handle_pose, STAND_DISTANCE).to_dimension(2)
@@ -111,6 +103,7 @@ class _DynamicDrawers(ControlFunction):
 
             print(f"{refined_pose=}")
 
+            move_arm(handle_pose @ camera_add_pose_refinement_right, frame_name)
             relocalize(config, frame_name)
             pull_start, pull_end = pull(
                 pose=refined_pose,
@@ -130,11 +123,13 @@ class _DynamicDrawers(ControlFunction):
             print(f"{camera_pose=}")
             move_arm(camera_pose, frame_name=frame_name, body_assist=True)
             imgs = get_rgb_pictures([GRIPPER_IMAGE_COLOR])
-            detections = detect_objects(imgs[0][0], ITEMS, vis_block=False)
+            detections = detect_objects(imgs[0][0], ITEMS, vis_block=True)
             print(f"{detections=}")
             pairs = [(refined_pose, det) for det in detections]
             detection_drawer_pairs.extend(pairs)
             direction = pull_start.coordinates - pull_end.coordinates
+            if len(pairs) > 0:
+                item_detected = True
             pull_start.set_rot_from_direction(direction)
             pull_end.set_rot_from_direction(direction)
             push(
@@ -149,6 +144,8 @@ class _DynamicDrawers(ControlFunction):
                 follow_arm=False,
             )
             move_arm(pull_end, frame_name)
+            if item_detected:
+                break
 
         stow_arm(False)
         print(f"{detection_drawer_pairs=}")

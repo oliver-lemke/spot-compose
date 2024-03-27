@@ -9,7 +9,7 @@ project_name: "template"
 note: "note"
 
 robot_parameters:
-  config_verbose: True
+  verbose: False
 
 # device on which to train
 device: "cuda"
@@ -19,7 +19,7 @@ pre_scanned_graphs:
   graph_frame_name_prefix: "filtered_fiducial_"
   floor: -0.1
   low_res: "24-03-26"
-  high_res: "24-03-26"
+  high_res: "24-03-27b"
   masked: ""
 
 # paths are relative from project_root_directory
@@ -43,25 +43,22 @@ subpaths:
 
 servers:
   graspnet:
-    ip: "192.168.1.186"
+    ip: "127.0.0.1"
     port: 5000
     route: "graspnet/predict"
   openmask:
-    ip: "192.168.1.186"
+    ip: "127.0.0.1"
     port: 5001
     route: "openmask/save_and_predict"
   vitpose:
-    ip: "192.168.1.186"
+    ip: "127.0.0.1"
     port: 5002
     route: "vitpose/predict"
   darknet:
-    ip: "192.168.1.35"
+    ip: "127.0.0.1"
     port: 5003
     route: "darknet/predict"
   yolodrawer:
-    ip: "192.168.1.186"
+    ip: "127.0.0.1"
     port: 5004
     route: "yolodrawer/predict"
-
-robot_parameters:
-    verbose: False

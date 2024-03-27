@@ -268,7 +268,7 @@ def iterative_furthest_point_sampling(
 def body_planning_mult_furthest(
     env_cloud: PointCloud,
     target: Pose3D,
-    floor_height_thresh: float = -0.1,
+    floor_height_thresh: float = 0,
     body_height: float = 0.45,
     min_target_distance: float = 0.75,
     max_target_distance: float = 1,
