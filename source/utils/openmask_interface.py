@@ -138,7 +138,7 @@ def get_mask_points(item: str, config, idx: int = 0, vis_block: bool = False):
 
 
 def visualize():
-    item = "green watering can"
+    item = "cabinet, shelf"
     config = Config()
     for i in range(15):
         print(i, end=", ")

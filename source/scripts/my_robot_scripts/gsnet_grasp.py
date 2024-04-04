@@ -95,7 +95,7 @@ class _BetterGrasp(ControlFunction):
         *args,
         **kwargs,
     ) -> str:
-        ITEM = "picture frame"
+        ITEM = "poro plushy"
         RADIUS = 0.75
         RESOLUTION = 16
         LAM_BODY = 0.01
@@ -132,7 +132,7 @@ class _BetterGrasp(ControlFunction):
             rotation_resolution=RESOLUTION,
             top_n=2,
             n_best=50,
-            vis_block=False,
+            vis_block=True,
         )
         robot.logger.info("Ending graspnet request.")
         grasp_timer_end = time.time_ns()
@@ -191,6 +191,7 @@ class _BetterGrasp(ControlFunction):
         body_pose_distanced = best_pose @ body_pose_adder
         body_move_start = time.time_ns()
         logger.log("Starting body movement.")
+        print(f"{body_pose_distanced=}")
         move_body(body_pose_distanced.to_dimension(2), frame_name)
         logger.log("Ending body movement.")
         body_move_end = time.time_ns()
@@ -202,7 +203,8 @@ class _BetterGrasp(ControlFunction):
         grasp_pose_new = adapt_grasp(best_pose, grasp_pose)
         pose_adder = Pose3D((0, 0, -0.01))
         grasp_pose_new = grasp_pose_new @ pose_adder
-        print(f"{width=}")
+        print(f"{grasp_pose_new.coordinates=}")
+        print(f"{grasp_pose_new.rot_matrix=}")
 
         arm_move_start = time.time_ns()
         logger.log("Starting arm movement.")

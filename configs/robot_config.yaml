@@ -1,4 +1,0 @@
-extends: "base.yaml"
-
-robot_parameters:
-    verbose: False

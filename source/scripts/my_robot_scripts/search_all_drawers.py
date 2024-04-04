@@ -129,16 +129,16 @@ def calculate_handle_poses(
         depth_response=depth_response,
         pixel_coordinatess=centers,
         frame_name=frame_name,
-        vis_block=True,
+        vis_block=False,
     ).reshape((-1, 3))
 
     # select all points within the point cloud that belong to a drawer (not a handle) and determine the planes
     # the axis of motion is simply the normal of that plane
     drawer_bbox_pointss = select_points_from_bounding_box(
-        depth_image_response, drawer_boxes, frame_name, vis_block=True
+        depth_image_response, drawer_boxes, frame_name, vis_block=False
     )
     handle_bbox_pointss = select_points_from_bounding_box(
-        depth_image_response, handle_boxes, frame_name, vis_block=True
+        depth_image_response, handle_boxes, frame_name, vis_block=False
     )
     points_frame = drawer_bbox_pointss[0]
     drawer_masks = drawer_bbox_pointss[1]
@@ -213,7 +213,7 @@ def refine_handle_position(
             centers_2D.append(center)
         centers_2D = np.stack(centers_2D, axis=0)
         centers_3D = frame_coordinate_from_depth_image(
-            depth_image, depth_response, centers_2D, frame_name, vis_block=True
+            depth_image, depth_response, centers_2D, frame_name, vis_block=False
         )
         closest_new_idx = np.argmin(
             np.linalg.norm(centers_3D - prev_center_3D, axis=1), axis=0
@@ -224,7 +224,7 @@ def refine_handle_position(
         handle_bbox = handle_detections[0].bbox
         center = determine_handle_center(depth_image, handle_bbox).reshape((1, 2))
         detection_coordinates_3D = frame_coordinate_from_depth_image(
-            depth_image, depth_response, center, frame_name, vis_block=True
+            depth_image, depth_response, center, frame_name, vis_block=False
         )
 
     # if the distance between expected and mean detection is too large, it likely means that we detect another
@@ -247,7 +247,7 @@ def refine_handle_position(
         depth_image_response,
         [handle_bbox, surrounding_bbox],
         frame_name,
-        vis_block=True,
+        vis_block=False,
     )
     surr_only_mask = surr_mask & (~handle_mask)
     current_body = frame_transformer.get_current_body_position_in_frame(
@@ -354,7 +354,7 @@ def search_drawer(
                 in_frame="image", vis_block=False, cut_to_size=False
             )
             predictions = drawer_predict(
-                color_response[0], config, input_format="bgr", vis_block=True
+                color_response[0], config, input_format="bgr", vis_block=False
             )
             handle_detections = [det for det in predictions if det.name == "handle"]
             refined_pose, discarded = refine_handle_position(
@@ -383,7 +383,7 @@ def search_drawer(
         print(f"{camera_pose=}")
         move_arm(camera_pose, frame_name=frame_name, body_assist=True)
         imgs = get_rgb_pictures([GRIPPER_IMAGE_COLOR])
-        detections = detect_objects(imgs[0][0], ITEMS, vis_block=True)
+        detections = detect_objects(imgs[0][0], ITEMS, vis_block=False)
         print(f"{detections=}")
         pairs = [(refined_pose, det) for det in detections]
         detection_drawer_pairs.extend(pairs)
@@ -446,7 +446,7 @@ class _DynamicDrawers(ControlFunction):
         *args,
         **kwargs,
     ) -> str:
-        indices = (3, 4)
+        indices = (6,)
         config = recursive_config.Config()
 
         frame_name = localize_from_images(config)
@@ -458,7 +458,7 @@ class _DynamicDrawers(ControlFunction):
         draw_det_pairs = []
         for idx in indices:
             cabinet_pcd, env_pcd = get_mask_points(
-                "cabinet, shelf", config, idx=idx, vis_block=True
+                "cabinet, shelf", config, idx=idx, vis_block=False
             )
             cabinet_centers = split_and_calculate_centers(
                 np.asarray(cabinet_pcd.points), threshold=SPLIT_THRESH

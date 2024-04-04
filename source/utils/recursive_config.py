@@ -5,6 +5,8 @@ import os
 
 import yaml
 
+current_file_path = __file__
+
 
 class Config:
     """
@@ -12,16 +14,16 @@ class Config:
     In the __init__ you can specify the lowest config file. By default, this is "user.yaml".
     Each .yaml file (except the top) has an extends attribute, which has the name of another .yaml file.
     The config class will search for that .yaml file, and overwrite its values with the ones we already have.
-    By default, we have two files: base.yaml and user.yaml, which extends the former.
-    That means user.yaml overwrites values in base.yaml. The idea of this configuration is that you have default values
-    in base.yaml, and any custom attributes we want to overwrite on the local machine, you can store in user.yaml.
+    By default, we have two files: config.yaml and user.yaml, which extends the former.
+    That means user.yaml overwrites values in config.yaml. The idea of this configuration is that you have default values
+    in config.yaml, and any custom attributes we want to overwrite on the local machine, you can store in user.yaml.
     """
 
     def __init__(self, file=None):
         self.timestamp = datetime.datetime.now().strftime("%Y-%m-%d__%H-%M-%S")
 
         if file is None:
-            file = "user.yaml"
+            file = "config.yaml"
         else:
             file = f"{file}.yaml"
 
@@ -54,6 +56,13 @@ class Config:
 
         # start config loading from the file specified in the parameter (user.yaml by default)
         self._config = load_recursive(file, [])
+
+        if "project_root_dir" not in self._config:
+            project_root_dir = os.path.dirname(
+                os.path.dirname(os.path.dirname(current_file_path))
+            )
+            self._config["project_root_dir"] = project_root_dir
+
         self._add_additional_info()
 
     def _add_additional_info(self) -> None:
