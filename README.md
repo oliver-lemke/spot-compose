@@ -1,7 +1,7 @@
 <div align='center'>
 <h2 align="center"> Spot-Compose: A Framework for Open-Vocabulary Object Retrieval and
 Drawer Manipulation in Point Clouds </h2>
-<h3 align="center">Under Review</h3>
+<h3 align="center">ICRA 2024 Mobile Manipulation and Embodied Intelligence Workshop (MOMA.v2) <br> Oral Presentation</h3>
 
 <a href="https://oliver-lemke.github.io/">Oliver Lemke</a><sup>1</sup>, <a href="https://zuriabauer.com/">Zuria Bauer</a><sup>1</sup>, <a href="https://scholar.google.com/citations?user=feJr7REAAAAJ&hl=en">René Zurbrügg</a><sup>1</sup>, <a href="https://people.inf.ethz.ch/marc.pollefeys/">Marc Pollefeys</a><sup>1,2</sup>, <a href="https://francisengelmann.github.io/">Francis Engelmann</a><sup>1</sup>, <a href="https://hermannblum.net/">Hermann Blum</a><sup>1</sup>
 
@@ -20,9 +20,9 @@ Spot-Compose presents a comprehensive framework for integration of modern machin
 
 
 # News :newspaper:
-
-* **Coming soon**: release on arXiv.
-* **13. March 2024**: Code released.
+* **April 23rd**: release of teaser video.
+* **April 22nd**: release on arXiv.
+* **March 13th 2024**: Code released.
 
 # Code Structure :clapper:
 
@@ -209,9 +209,10 @@ We provide detailed results here.
 
 # BibTeX :pray:
 ```
-@article{lemke2024spotcompose,
-  author    = {Lemke, Oliver and Bauer, Zuria and Zurbr\"{u}gg, Ren\'{e} and Engelmann, Francis and Blum, Hermann},
-  title     = {Spot-Compose: A Framework for Open-Vocabulary Object Retrieval and Drawer Manipulation in Point Clouds},
-  year      = {2024},
+@inproceedings{lemke2024spotcompose,
+  title={Spot-Compose: A Framework for Open-Vocabulary Object Retrieval and Drawer Manipulation in Point Clouds},
+  author={Oliver Lemke and Zuria Bauer and Ren{\'e} Zurbr{\"u}gg and Marc Pollefeys and Francis Engelmann and Hermann Blum},
+  booktitle={2nd Workshop on Mobile Manipulation and Embodied Intelligence at ICRA 2024},
+  year={2024},
 }
 ```
