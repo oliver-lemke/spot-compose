@@ -16,7 +16,8 @@ Spot-Compose presents a comprehensive framework for integration of modern machin
 </div>
 
 [[Project Webpage](https://spot-compose.github.io/)]
-[[Paper]() (coming soon!)]
+[[Paper](https://arxiv.org/pdf/2404.12440.pdf)]
+[[Teaser Video](https://www.youtube.com/watch?v=4BRKIzyaT3o)]
 
 
 # News :newspaper:
