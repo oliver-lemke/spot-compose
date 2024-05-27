@@ -1,7 +1,7 @@
 <div align='center'>
 <h2 align="center"> Spot-Compose: A Framework for Open-Vocabulary Object Retrieval and
 Drawer Manipulation in Point Clouds </h2>
-<h3 align="center">ICRA 2024 Mobile Manipulation and Embodied Intelligence Workshop (MOMA.v2) <br> Oral Presentation</h3>
+<h3 align="center">ICRA 2024 Mobile Manipulation and Embodied Intelligence Workshop (MOMA.v2)<br>Best Paper</h3>
 
 <a href="https://oliver-lemke.github.io/">Oliver Lemke</a><sup>1</sup>, <a href="https://zuriabauer.com/">Zuria Bauer</a><sup>1</sup>, <a href="https://scholar.google.com/citations?user=feJr7REAAAAJ&hl=en">René Zurbrügg</a><sup>1</sup>, <a href="https://people.inf.ethz.ch/marc.pollefeys/">Marc Pollefeys</a><sup>1,2</sup>, <a href="https://francisengelmann.github.io/">Francis Engelmann</a><sup>1</sup>, <a href="https://hermannblum.net/">Hermann Blum</a><sup>1</sup>
 
