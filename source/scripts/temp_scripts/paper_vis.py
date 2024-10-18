@@ -38,7 +38,7 @@ def render_depth(geometries, camera):
 def main():
     # paths
     config = Config()
-    data_path = config.get_subpath("data")
+    data_path = config.get_subpath("resources")
     pcd_name = config["pre_scanned_graphs"]["high_res"]
     aligned_pcd_dir = os.path.join(data_path, "aligned_point_clouds", pcd_name)
     pre_pcd_dir = os.path.join(data_path, "prescans", pcd_name)

@@ -164,7 +164,7 @@ def write_ply(data, output):
 def main(argv):
     config = Config()
     autowalk = config["pre_scanned_graphs"]["low_res"]
-    base_data_path = config.get_subpath("data")
+    base_data_path = config.get_subpath("resources")
     data_path = os.path.join(str(base_data_path), "autowalk", f"{autowalk}.walk")
     point_cloud_path = os.path.join(
         str(base_data_path), "point_clouds", f"{autowalk}.ply"

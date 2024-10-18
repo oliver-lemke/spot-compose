@@ -68,7 +68,7 @@ def predict(
 
 def _test_pose() -> None:
     config = Config()
-    base_path = config.get_subpath("data")
+    base_path = config.get_subpath("resources")
     image_name = "human.jpg"
     # image_name = "landscape.png"
     img_path = os.path.join(base_path, "test", image_name)

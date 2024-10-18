@@ -42,7 +42,7 @@ def select_points_in_bbox(points, intrinsics, extrinsics, bbox):
 def main():
     # set up paths
     config = Config()
-    data_path = config.get_subpath("data")
+    data_path = config.get_subpath("resources")
     base_path = os.path.join(data_path, "prescans", "24-02-22")
     frame_nr = 147
     frame_nr_str = str(frame_nr).zfill(5)

@@ -14,7 +14,7 @@ import requests
 from PIL import Image
 from transformers import Owlv2ForObjectDetection, Owlv2Processor
 from utils import vis
-from utils.object_detetion import BBox, Detection
+from utils.docker_interfaces.object_detection import BBox, Detection
 from utils.vis import normalize_image
 
 _CHECKPOINT = "google/owlv2-base-patch16-ensemble"
@@ -77,7 +77,7 @@ def detect_objects(
 
 def main() -> None:
     url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-    image = Image.open(requests.get(url, stream=True).raw)
+    image = Image.open(requests.get(url, stream=True, timeout=10).raw)
     texts = ["cat", "dog"]
     start = time.time_ns()
     detections = detect_objects(np.asarray(image), texts, vis_block=True)

@@ -39,7 +39,7 @@ from scipy.interpolate import griddata
 from utils import vis
 from utils.coordinates import Pose3D
 from utils.importer import PointCloud, Vector3dVector
-from utils.object_detetion import BBox
+from utils.docker_interfaces.object_detection import BBox
 from utils.point_clouds import icp
 from utils.recursive_config import Config
 from utils.singletons import (

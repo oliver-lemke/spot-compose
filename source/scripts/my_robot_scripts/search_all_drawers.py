@@ -28,7 +28,7 @@ from utils.coordinates import Pose2D, Pose3D, average_pose3Ds, pose_distanced
 from utils.drawer_detection import drawer_handle_matches
 from utils.drawer_detection import predict_yolodrawer as drawer_predict
 from utils.importer import PointCloud
-from utils.object_detetion import BBox, Detection, Match
+from utils.docker_interfaces.object_detection import BBox, Detection, Match
 from utils.openmask_interface import get_mask_points
 from utils.point_clouds import body_planning_mult_furthest
 from utils.recursive_config import Config

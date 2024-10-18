@@ -63,7 +63,7 @@ spot-compose/
 │           ├── extract_point_cloud.py # Extract point cloud from Boston Dynamics autowalk
 │           ├── full_align.py          # Align autowalk and scanned point cloud
 │           └── vis_ply_point_clouds_with_coordinates.py # Visualize aligned point cloud
-├── data/
+├── resources/
 │   ├── autowalk/                      # Raw autowalk data
 │   ├── point_clouds/                  # Extracted point clouds from autowalks
 │   ├── prescans/                      # Raw prescan data

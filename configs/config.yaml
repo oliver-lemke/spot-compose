@@ -25,21 +25,20 @@ pre_scanned_graphs:
 # paths are relative from project_root_directory
 subpaths:
   cache: "cache/"
-  logs: "data/logs/"
+  logs: "resources/logs/"
   output: "output/"
-  resume_from: "path/to/weights"
-  data: "data/"
-  graphs: "data/graphs/"
-  prescans: "data/prescans"
-  autowalks: "data/autowalk"
-  point_clouds: "data/point_clouds"
-  aligned_point_clouds: "data/aligned_point_clouds"
-  masks: "data/masked"
+  resources: "resources/"
+  graphs: "resources/graphs/"
+  prescans: "resources/prescans"
+  autowalks: "resources/autowalk"
+  point_clouds: "resources/point_clouds"
+  aligned_point_clouds: "resources/aligned_point_clouds"
+  masks: "resources/masked"
   # environment
   environment: ".environment.yaml"
   spot_description: "spot_description"
-  tmp: "data/tmp"
-  openmask_features: "data/openmask_features"
+  tmp: "resources/tmp"
+  openmask_features: "resources/openmask_features"
 
 servers:
   graspnet:

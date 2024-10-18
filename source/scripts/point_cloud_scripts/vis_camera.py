@@ -24,7 +24,7 @@ def rotate_e(
 def main():
     # set up paths
     config = Config()
-    data_path = config.get_subpath("data")
+    data_path = config.get_subpath("resources")
     base_path = os.path.join(data_path, "24-02-22_15_24_26", "2024_02_22_15_17_21")
     frame_nr = 147
     frame_nr_str = str(frame_nr).zfill(5)

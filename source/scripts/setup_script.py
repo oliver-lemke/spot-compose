@@ -11,7 +11,7 @@ def _wandb_login():
 
 def _download_Chinese_MNIST(config: Config):
     # MNIST dataset
-    dataset_path = config.get_subpath("data")
+    dataset_path = config.get_subpath("resources")
     dataset_download_path = os.path.join(dataset_path, "data_template")
     file_name = "chinese-mnist.zip"
     zip_path = os.path.join(dataset_download_path, file_name)
