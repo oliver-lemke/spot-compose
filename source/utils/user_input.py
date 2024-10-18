@@ -7,7 +7,7 @@ from __future__ import annotations
 import numpy as np
 
 from utils.coordinates import Pose2D
-from utils.mask3D_interface import is_valid_label
+from utils.docker_interfaces.mask3D_interface import is_valid_label
 
 
 def get_wanted_item_mask3d(max_retries: int = 3) -> str:

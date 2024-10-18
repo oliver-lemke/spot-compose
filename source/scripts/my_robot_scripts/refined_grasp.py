@@ -14,7 +14,7 @@ from robot_utils.video import localize_from_images
 from scipy.spatial.transform import Rotation
 from utils import graspnet_interface
 from utils.coordinates import Pose2D, Pose3D
-from utils.mask3D_interface import get_coordinates_from_item
+from utils.docker_interfaces.mask3D_interface import get_coordinates_from_item
 from utils.point_clouds import body_planning, get_radius_env_cloud
 from utils.recursive_config import Config
 from utils.singletons import (

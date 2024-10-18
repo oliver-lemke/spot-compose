@@ -26,7 +26,7 @@ from utils.singletons import (
     RobotStateClientSingleton,
     WorldObjectClientSingleton,
 )
-from utils.zero_shot_object_detection import detect_objects
+from utils.docker_interfaces.zero_shot_object_detection import detect_objects
 
 frame_transformer = FrameTransformerSingleton()
 graph_nav_client = GraphNavClientSingleton()

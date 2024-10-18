@@ -29,7 +29,7 @@ from robot_utils.video import (
 from scipy.spatial.transform import Rotation
 from utils import graspnet_interface
 from utils.coordinates import Pose2D, Pose3D
-from utils.mask3D_interface import get_coordinates_from_item
+from utils.docker_interfaces.mask3D_interface import get_coordinates_from_item
 from utils.point_clouds import body_planning, get_radius_env_cloud
 from utils.recursive_config import Config
 from utils.singletons import (
@@ -41,7 +41,7 @@ from utils.singletons import (
     WorldObjectClientSingleton,
 )
 from utils.user_input import get_wanted_item_mask3d
-from utils.vitpose_interface import predict
+from utils.docker_interfaces.vitpose_interface import predict
 
 frame_transformer = FrameTransformerSingleton()
 graph_nav_client = GraphNavClientSingleton()

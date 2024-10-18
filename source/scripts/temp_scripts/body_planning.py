@@ -6,7 +6,7 @@ import open3d as o3d
 from utils import recursive_config
 from utils.coordinates import Coordinates, get_circle_points
 from utils.importer import PointCloud
-from utils.mask3D_interface import get_coordinates_from_item
+from utils.docker_interfaces.mask3D_interface import get_coordinates_from_item
 
 
 def get_top_n_entries(

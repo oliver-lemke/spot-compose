@@ -26,7 +26,7 @@ from utils.coordinates import (
     from_a_to_b_distanced,
     spherical_angle_views_from_target,
 )
-from utils.graspnet_interface import predict_partial_grasp
+from utils.docker_interfaces.graspnet_interface import predict_partial_grasp
 from utils.importer import PointCloud
 from utils.point_clouds import icp
 from utils.recursive_config import Config

@@ -14,7 +14,7 @@ from scipy.spatial.transform import Rotation
 from utils import graspnet_interface
 from utils.coordinates import Pose2D, Pose3D
 from utils.logger import LoggerSingleton
-from utils.openmask_interface import get_mask_points
+from utils.docker_interfaces.openmask_interface import get_mask_points
 from utils.point_clouds import body_planning, get_radius_env_cloud
 from utils.recursive_config import Config
 from utils.singletons import (

@@ -9,7 +9,7 @@ import cv2
 import open3d as o3d
 from utils.coordinates import Pose3D
 from utils.importer import Vector3dVector
-from utils.mask3D_interface import get_all_item_point_clouds, get_coordinates_from_item
+from utils.docker_interfaces.mask3D_interface import get_all_item_point_clouds, get_coordinates_from_item
 from utils.recursive_config import Config
 
 

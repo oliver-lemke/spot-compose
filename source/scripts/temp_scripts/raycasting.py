@@ -10,7 +10,7 @@ import open3d as o3d
 from matplotlib import pyplot as plt
 from utils import recursive_config
 from utils.coordinates import get_uniform_sphere_directions
-from utils.mask3D_interface import get_coordinates_from_item
+from utils.docker_interfaces.mask3D_interface import get_coordinates_from_item
 
 
 def steps_to_change_from_right(rays: np.ndarray) -> np.ndarray:

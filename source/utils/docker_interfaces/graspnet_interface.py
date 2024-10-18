@@ -20,10 +20,10 @@ from utils.coordinates import (
     get_uniform_sphere_directions,
     remove_duplicate_rows,
 )
-from utils.docker_communication import save_files, send_request
+from utils.docker_interfaces.docker_communication import save_files, send_request
 from utils.files import prep_tmp_path
 from utils.importer import PointCloud
-from utils.openmask_interface import get_mask_points
+from utils.docker_interfaces.openmask_interface import get_mask_points
 from utils.point_clouds import get_radius_env_cloud
 from utils.recursive_config import Config
 

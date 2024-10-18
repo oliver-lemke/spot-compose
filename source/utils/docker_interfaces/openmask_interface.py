@@ -11,7 +11,7 @@ import open3d as o3d
 import requests
 from urllib3.exceptions import ReadTimeoutError
 from utils import recursive_config
-from utils.docker_communication import _get_content
+from utils.docker_interfaces.docker_communication import _get_content
 from utils.recursive_config import Config
 
 MODEL, PREPROCESS = clip.load("ViT-L/14@336px", device="cpu")
@@ -23,7 +23,7 @@ def zip_point_cloud(path: str) -> str:
         shutil.rmtree(name)
     output_filename = os.path.join(path, f"{name}.zip")
     with zipfile.ZipFile(output_filename, "w") as zipf:
-        for foldername, subfolders, filenames in os.walk(path):
+        for foldername, _, filenames in os.walk(path):
             for filename in filenames:
                 if filename.endswith(".zip"):
                     continue
@@ -41,7 +41,7 @@ def get_mask_clip_features() -> None:
     directory_path = config.get_subpath("aligned_point_clouds")
     ending = config["pre_scanned_graphs"]["high_res"]
     directory_path = os.path.join(str(directory_path), ending)
-    zipfile = zip_point_cloud(directory_path)
+    zip_file = zip_point_cloud(directory_path)
 
     kwargs = {
         "name": ("str", ending),
@@ -50,7 +50,7 @@ def get_mask_clip_features() -> None:
         # "scene_intrinsic_resolution": ("str", "[968,1296]"),
     }
     server_address = f"http://localhost:{PORT}/openmask/save_and_predict"
-    with open(zipfile, "rb") as f:
+    with open(zip_file, "rb") as f:
         try:
             response = requests.post(
                 server_address, files={"scene": f}, params=kwargs, timeout=900

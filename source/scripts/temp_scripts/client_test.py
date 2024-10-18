@@ -13,14 +13,14 @@ from utils.coordinates import (
     grasp_from_direction,
     remove_duplicate_rows,
 )
-from utils.docker_communication import save_files, send_request
+from utils.docker_interfaces.docker_communication import save_files, send_request
 from utils.importer import PointCloud
-from utils.mask3D_interface import get_coordinates_from_item
+from utils.docker_interfaces.mask3D_interface import get_coordinates_from_item
 
 
 def get_armadillo_model(
     scale: float = 1.0, vis: bool = False, return_mesh: bool = False
-) -> PointCloud | (PointCloud, PointCloud):
+) -> PointCloud | tuple[PointCloud, PointCloud]:
     """
     Create model of armadillo for testing
     :param scale: scale of model
