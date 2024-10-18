@@ -130,13 +130,13 @@ def drawer_handle_matches(detections: list[Detection]) -> list[Match]:
         handle_left, handle_top, handle_right, handle_bottom = handle_bbox
         drawer_left, drawer_top, drawer_right, drawer_bottom = drawer_bbox
 
-        # Calculate the overlap between the bounding boxes
+        # calculate the overlap between the bounding boxes
         overlap_left = max(handle_left, drawer_left)
         overlap_top = max(handle_top, drawer_top)
         overlap_right = min(handle_right, drawer_right)
         overlap_bottom = min(handle_bottom, drawer_bottom)
 
-        # Calculate the area of the overlap
+        # calculate the area of the overlap
         overlap_width = max(0, overlap_right - overlap_left)
         overlap_height = max(0, overlap_bottom - overlap_top)
 
