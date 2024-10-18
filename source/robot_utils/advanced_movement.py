@@ -169,6 +169,7 @@ def positional_grab(
     :param distance_end: distance at which to end grab
     :param frame_name: frame in which the pose is specified relative to
     :param already_gripping: whether to NOT open up the gripper in the beginning
+    :param kwargs:  additional parameters to pass to the distanced movement functions
     """
     static_params = {
         "pose": pose,
@@ -196,7 +197,7 @@ def pull(
     release_after: bool = True,
     follow_arm: bool = False,
     timeout: float = 6.0,
-) -> (Pose3D, Pose3D):
+) -> tuple[Pose3D, Pose3D]:
     """
     Executes a pulling motion (e.g. for drawers)
     :param pose: pose of knob in 3D space
@@ -204,8 +205,14 @@ def pull(
     :param mid_distance: how far to go before grabbing
     :param end_distance: how far to pull
     :param frame_name:
+    :param stiffness_diag_in: stiffness in-movement
+    :param damping_diag_in: stiffness in-movement
+    :param stiffness_diag_out: stiffness out-movement
+    :param damping_diag_out: stiffness out-movement
+    :param forces: force to be applied
+    :param follow_arm: whether to follow the arm during the movement
     :param release_after: release the knob after pulling motion
-    :param sleep: whether to sleep in between motions for safety
+    :param timeout: time for movement (less time results in faster movement)
     """
     assert len(stiffness_diag_in) == 6
     if stiffness_diag_in is None:
@@ -272,14 +279,19 @@ def push(
     forces: list[float] | None = None,
     follow_arm: bool = False,
     timeout: float = 6.0,
-) -> (Pose3D, Pose3D):
+) -> tuple[Pose3D, Pose3D]:
     """
     Executes a pushing motion (e.g. for drawers)
-    :param pose: pose of knob in 3D space
+    :param start_pose: where to start pushing
+    :param end_pose: where to end pushing
     :param start_distance: how far from the button to start push
     :param end_distance: how far to push
     :param frame_name:
-    :param sleep: whether to sleep in between motions for safety
+    :param stiffness_diag: stiffness movement
+    :param damping_diag: damping movement
+    :param forces: force to be applied
+    :param follow_arm: whether to follow the arm during the movement
+    :param timeout: time for movement (less time results in faster movement)
     """
     assert len(stiffness_diag) == 6
     if stiffness_diag is None:
