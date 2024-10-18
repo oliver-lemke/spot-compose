@@ -120,7 +120,6 @@ def predict_darknet(
     return detections
 
 
-# noinspection PyTypeChecker
 def drawer_handle_matches(detections: list[Detection]) -> list[Match]:
     def calculate_ioa(drawer: Detection, handle: Detection) -> float:
         _, _, drawer_bbox = drawer
