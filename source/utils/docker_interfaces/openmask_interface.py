@@ -112,9 +112,7 @@ def get_mask_points(item: str, config, idx: int = 0, vis_block: bool = False):
     with torch.no_grad():
         text_features = MODEL.encode_text(text)
 
-    cos_sim = torch.nn.functional.cosine_similarity(
-        torch.Tensor(features), text_features, dim=1
-    )
+    cos_sim = torch.cosine_similarity(torch.Tensor(features), text_features, dim=1)
     values, indices = torch.topk(cos_sim, idx + 1)
     most_sim_feat_idx = indices[-1].item()
     print(f"{most_sim_feat_idx=}", f"value={values[-1].item()}")
