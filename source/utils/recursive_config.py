@@ -36,9 +36,9 @@ class Config:
 
             # load the .yaml file as a dict
             config_path = os.path.dirname(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                os.path.dirname(os.path.dirname(os.path.abspath(current_file_path)))
             )
-            config_path = os.path.join(config_path, "configs", config)
+            config_path = os.path.join(config_path, "resources", "configs", config)
             with open(config_path, "r", encoding="UTF-8") as file_handle:
                 cfg = yaml.safe_load(file_handle)
 

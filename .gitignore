@@ -167,3 +167,4 @@ cython_debug/
 /.environment.yaml
 /.vscode/
 /resources/
+/tmp/

@@ -130,12 +130,57 @@ def get_mask_points(item: str, config, idx: int = 0, vis_block: bool = False):
     return pcd_in, pcd_out
 
 
+def compute_bounding_boxes(
+    config, vis_block: bool = False
+) -> tuple[np.ndarray, np.ndarray]:
+    pcd_name = config["pre_scanned_graphs"]["high_res"]
+    base_path = config.get_subpath("openmask_features")
+    feat_path = os.path.join(base_path, pcd_name, "clip_features_comp.npy")
+    mask_path = os.path.join(base_path, pcd_name, "scene_MASKS_comp.npy")
+    pcd_path = os.path.join(
+        config.get_subpath("aligned_point_clouds"), pcd_name, "scene.ply"
+    )
+
+    features = np.load(feat_path)
+    masks = np.load(mask_path).T
+    masks = masks.astype(bool)
+    nr_objects = masks.shape[0]
+    pcd = o3d.io.read_point_cloud(str(pcd_path))
+    points = np.asarray(pcd.points)
+
+    # get the mins and maxes per object
+    maskss = np.repeat(masks[..., np.newaxis], 3, axis=2)
+    pointss = np.repeat(points[np.newaxis, ...], nr_objects, axis=0)
+    masked_pointss = np.ma.array(
+        pointss, mask=~maskss
+    )  # True means masked, opposite meaning therefore ~
+    bbox_mins = masked_pointss.min(axis=1)
+    bbox_maxs = masked_pointss.max(axis=1)
+
+    if vis_block:
+        aabbs = []
+        for i in range(nr_objects):
+            bbox_min = bbox_mins[i]
+            bbox_max = bbox_maxs[i]
+
+            # Create an axis-aligned bounding box
+            aabb = o3d.geometry.AxisAlignedBoundingBox(
+                min_bound=bbox_min, max_bound=bbox_max
+            )
+            aabbs.append(aabb)
+
+        # Optionally, visualize the bounding box
+        o3d.visualization.draw_geometries([pcd, *aabbs])
+
+    return (bbox_mins, bbox_maxs), features
+
+
 ########################################################################################
 # TESTING
 ########################################################################################
 
 
-def visualize():
+def visualize_query_masks():
     item = "cabinet, shelf"
     config = Config()
     for i in range(15):
@@ -143,6 +188,13 @@ def visualize():
         get_mask_points(item, config, idx=i, vis_block=True)
 
 
+def visualize_bouding_boxes():
+    os.environ["DISPLAY"] = "localhost:11.0"
+    config = Config()
+    compute_bounding_boxes(config, vis_block=True)
+
+
 if __name__ == "__main__":
     # get_mask_clip_features()
-    visualize()
+    # visualize_query_masks()
+    visualize_bouding_boxes()

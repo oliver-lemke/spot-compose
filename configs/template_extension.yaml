@@ -1,5 +1,0 @@
-# load the base configuration file
-extends: "base.yaml"
-
-# for example change the root directory for your setup
-project_root_dir: "PATH/TO/YOUR/PROJECT_ROOT_DIRECTORY"
