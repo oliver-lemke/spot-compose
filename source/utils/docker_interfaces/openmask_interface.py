@@ -43,17 +43,19 @@ def get_mask_clip_features() -> None:
     directory_path = os.path.join(str(directory_path), ending)
     zip_file = zip_point_cloud(directory_path)
 
+    num_queries = 50
     kwargs = {
         "name": ("str", ending),
         "overwrite": ("bool", True),
         "scene_intrinsic_resolution": ("str", "[1440,1920]"),
         # "scene_intrinsic_resolution": ("str", "[968,1296]"),
+        "num_queries": ("int", num_queries),
     }
     server_address = f"http://localhost:{PORT}/openmask/save_and_predict"
     with open(zip_file, "rb") as f:
         try:
             response = requests.post(
-                server_address, files={"scene": f}, params=kwargs, timeout=900
+                server_address, files={"scene": f}, params=kwargs, timeout=6000
             )
         except ReadTimeoutError:
             print("Request timed out!")
@@ -68,31 +70,48 @@ def get_mask_clip_features() -> None:
 
     features = contents["clip_features"]
     masks = contents["scene_MASKS"]
+    masks = masks.T
+    scores = contents["scene_SCORES"]
+    classes = contents["scene_CLASSES"]
 
     save_path = config.get_subpath("openmask_features")
     save_path = os.path.join(save_path, ending)
     os.makedirs(save_path, exist_ok=False)
     feature_path = os.path.join(str(save_path), "clip_features.npy")
     mask_path = os.path.join(str(save_path), "scene_MASKS.npy")
+    score_path = os.path.join(str(save_path), "scene_SCORES.npy")
+    class_path = os.path.join(str(save_path), "scene_CLASSES.npy")
     np.save(feature_path, features)
     np.save(mask_path, masks)
+    np.save(score_path, scores)
+    np.save(class_path, classes)
 
     # make unique
-    features, feat_idx = np.unique(features, axis=0, return_index=True)
-    masks = masks[:, feat_idx]
-    masks, mask_idx = np.unique(masks, axis=1, return_index=True)
+    masks, mask_idx = np.unique(masks, axis=0, return_index=True)
+    scores = scores[mask_idx]
+    classes = classes[mask_idx]
     features = features[mask_idx]
     feature_compressed_path = os.path.join(str(save_path), "clip_features_comp.npy")
     mask_compressed_path = os.path.join(str(save_path), "scene_MASKS_comp.npy")
+    score_compressed_path = os.path.join(str(save_path), "scene_SCORES_comp.npy")
+    class_compressed_path = os.path.join(str(save_path), "scene_CLASSES_comp.npy")
     np.save(feature_compressed_path, features)
     np.save(mask_compressed_path, masks)
+    np.save(score_compressed_path, scores)
+    np.save(class_compressed_path, classes)
 
 
-def get_mask_points(item: str, config, idx: int = 0, vis_block: bool = False):
+def get_mask_points(
+    item: str, config, idx: int = 0, vis_block: bool = False, comp: bool = True
+):
     pcd_name = config["pre_scanned_graphs"]["high_res"]
     base_path = config.get_subpath("openmask_features")
-    feat_path = os.path.join(base_path, pcd_name, "clip_features_comp.npy")
-    mask_path = os.path.join(base_path, pcd_name, "scene_MASKS_comp.npy")
+    if comp:
+        feat_path = os.path.join(base_path, pcd_name, "clip_features_comp.npy")
+        mask_path = os.path.join(base_path, pcd_name, "scene_MASKS_comp.npy")
+    else:
+        feat_path = os.path.join(base_path, pcd_name, "clip_features.npy")
+        mask_path = os.path.join(base_path, pcd_name, "scene_MASKS.npy")
     pcd_path = os.path.join(
         config.get_subpath("aligned_point_clouds"), pcd_name, "scene.ply"
     )
@@ -100,11 +119,6 @@ def get_mask_points(item: str, config, idx: int = 0, vis_block: bool = False):
     features = np.load(feat_path)
     masks = np.load(mask_path)
     item = item.lower()
-
-    features, feat_idx = np.unique(features, axis=0, return_index=True)
-    masks = masks[:, feat_idx]
-    # masks, mask_idx = np.unique(masks, axis=1, return_index=True)
-    # features = features[mask_idx]
 
     text = clip.tokenize([item]).to("cpu")
 
@@ -117,7 +131,7 @@ def get_mask_points(item: str, config, idx: int = 0, vis_block: bool = False):
     most_sim_feat_idx = indices[-1].item()
     print(f"{most_sim_feat_idx=}", f"value={values[-1].item()}")
     # idx = 1
-    mask = masks[:, most_sim_feat_idx].astype(bool)
+    mask = masks[most_sim_feat_idx].astype(bool)
 
     pcd = o3d.io.read_point_cloud(str(pcd_path))
     pcd_in = pcd.select_by_index(np.where(mask)[0])
@@ -131,18 +145,30 @@ def get_mask_points(item: str, config, idx: int = 0, vis_block: bool = False):
 
 
 def compute_bounding_boxes(
-    config, vis_block: bool = False
+    config,
+    vis_block: bool = False,
+    min_score: bool = 0.5,
 ) -> tuple[np.ndarray, np.ndarray]:
     pcd_name = config["pre_scanned_graphs"]["high_res"]
     base_path = config.get_subpath("openmask_features")
     feat_path = os.path.join(base_path, pcd_name, "clip_features_comp.npy")
     mask_path = os.path.join(base_path, pcd_name, "scene_MASKS_comp.npy")
+    score_path = os.path.join(base_path, pcd_name, "scene_SCORES_comp.npy")
+    class_path = os.path.join(base_path, pcd_name, "scene_CLASSES_comp.npy")
     pcd_path = os.path.join(
         config.get_subpath("aligned_point_clouds"), pcd_name, "scene.ply"
     )
 
     features = np.load(feat_path)
-    masks = np.load(mask_path).T
+    masks = np.load(mask_path)
+    scores = np.load(score_path)
+    classes = np.load(class_path)
+
+    pass_score_bool = scores > min_score
+    masks = masks[pass_score_bool]
+    scores = scores[pass_score_bool]
+    features = features[pass_score_bool]
+
     masks = masks.astype(bool)
     nr_objects = masks.shape[0]
     pcd = o3d.io.read_point_cloud(str(pcd_path))
@@ -156,10 +182,11 @@ def compute_bounding_boxes(
     )  # True means masked, opposite meaning therefore ~
     bbox_mins = masked_pointss.min(axis=1)
     bbox_maxs = masked_pointss.max(axis=1)
+    nr_bboxes = bbox_maxs.shape[0]
 
     if vis_block:
         aabbs = []
-        for i in range(nr_objects):
+        for i in range(nr_bboxes):
             bbox_min = bbox_mins[i]
             bbox_max = bbox_maxs[i]
 
@@ -181,14 +208,14 @@ def compute_bounding_boxes(
 
 
 def visualize_query_masks():
-    item = "cabinet, shelf"
+    item = "table"
     config = Config()
     for i in range(15):
         print(i, end=", ")
         get_mask_points(item, config, idx=i, vis_block=True)
 
 
-def visualize_bouding_boxes():
+def visualize_bounding_boxes():
     os.environ["DISPLAY"] = "localhost:11.0"
     config = Config()
     compute_bounding_boxes(config, vis_block=True)
@@ -196,5 +223,5 @@ def visualize_bouding_boxes():
 
 if __name__ == "__main__":
     # get_mask_clip_features()
-    # visualize_query_masks()
-    visualize_bouding_boxes()
+    visualize_query_masks()
+    # visualize_bounding_boxes()

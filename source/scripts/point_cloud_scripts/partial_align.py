@@ -250,7 +250,9 @@ def main() -> None:
 
     # take first image of scan_ground
     tag_id = config["pre_scanned_graphs"]["base_fiducial_id"]
-    best_frame_number, best_detection = get_best_detection(jpg_json_paths, tag_id)
+    best_frame_number, best_detection = get_best_detection(
+        jpg_json_paths, tag_id, set_detection_nr=0
+    )
     print(f"{best_frame_number=}")
     json_path = jpg_json_paths[best_frame_number]["json"]
 
