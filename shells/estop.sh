@@ -1,4 +1,6 @@
 #!/bin/bash
-cd /Users/oliverlemke/Documents/University/2024/ext-projects/spot-drawers/shells
+SHELLS_DIR="$(dirname "$(realpath "$0")")"
+
+cd ${SHELLS_DIR}
 source start.sh
 p estop_nogui
