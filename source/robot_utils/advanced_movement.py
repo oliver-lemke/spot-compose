@@ -318,7 +318,24 @@ def push(
     move_arm_distanced(end_pose, end_distance, frame_name, **keywords)  # pushing
 
 
-def adapt_grasp(body_pose: Pose3D, grasp_pose: Pose3D):
+def align_grasp_with_body(body_pose: Pose3D, grasp_pose: Pose3D):
+    """
+    Adjusts the orientation of a grasp pose relative to a given body pose to ensure alignment.
+
+    This function calculates the grasp pose in the local coordinate system of the body pose.
+    If the grasp’s orientation deviates significantly (e.g., pointing in an undesirable
+    direction), it applies a 180-degree rotation around the x-axis to correct it.
+
+    Args:
+        body_pose (Pose3D): The pose of the body relative to which the grasp alignment
+                            is calculated.
+        grasp_pose (Pose3D): The original pose of the grasp, which includes coordinates and
+                             orientation. This is modified if it fails alignment checks.
+
+    Returns:
+        Pose3D: The adjusted grasp pose, rotated if necessary, to ensure proper alignment
+                with the body’s orientation.
+    """
     grasp_in_body = body_pose.inverse() @ grasp_pose
     top_dir = grasp_in_body.rot_matrix @ np.array([0, 0, 1])
     to_rotate = top_dir[0] < 0 or top_dir[2] < -0.2

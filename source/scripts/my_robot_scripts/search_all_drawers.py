@@ -31,7 +31,7 @@ from utils.docker_interfaces.drawer_detection import (
 )
 from utils.importer import PointCloud
 from utils.docker_interfaces.object_detection import BBox, Detection, Match
-from utils.docker_interfaces.openmask_interface import get_mask_points
+from utils.docker_interfaces.openmask_interface import get_item_pcd
 from utils.point_clouds import body_planning_mult_furthest
 from utils.recursive_config import Config
 from utils.singletons import (
@@ -459,7 +459,7 @@ class _DynamicDrawers(ControlFunction):
 
         draw_det_pairs = []
         for idx in indices:
-            cabinet_pcd, env_pcd = get_mask_points(
+            cabinet_pcd, env_pcd = get_item_pcd(
                 "cabinet, shelf", config, idx=idx, vis_block=False
             )
             cabinet_centers = split_and_calculate_centers(

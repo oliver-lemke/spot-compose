@@ -5,16 +5,16 @@ import time
 import numpy as np
 
 from bosdyn.client import Sdk
-from robot_utils.advanced_movement import adapt_grasp, positional_grab
+from robot_utils.advanced_movement import align_grasp_with_body, positional_grab
 from robot_utils.base import ControlFunction, take_control_with_function
 from robot_utils.basic_movements import carry_arm, move_body, set_gripper, stow_arm
 from robot_utils.frame_transformer import FrameTransformerSingleton
 from robot_utils.video import localize_from_images
 from scipy.spatial.transform import Rotation
-from utils import graspnet_interface
+from utils.docker_interfaces import graspnet_interface
 from utils.coordinates import Pose2D, Pose3D
 from utils.logger import LoggerSingleton
-from utils.docker_interfaces.openmask_interface import get_mask_points
+from utils.docker_interfaces.openmask_interface import get_item_pcd
 from utils.point_clouds import body_planning, get_radius_env_cloud
 from utils.recursive_config import Config
 from utils.singletons import (
@@ -45,7 +45,7 @@ def joint_optimization_vec(
     lambda_body: float = 0.5,
     lambda_alignment: float = 1.0,
     temperature: float = 1.0,
-) -> (Pose3D, Pose3D, float):
+) -> tuple[Pose3D, Pose3D, float]:
     nr_grasps = tf_matrices.shape[0]
     nr_poses = len(body_scores)
     # matrix is nr_grasps x nr_poses
@@ -95,7 +95,7 @@ class _BetterGrasp(ControlFunction):
         *args,
         **kwargs,
     ) -> str:
-        ITEM = "poro plushy"
+        ITEM = "candle"
         RADIUS = 0.75
         RESOLUTION = 16
         LAM_BODY = 0.01
@@ -111,7 +111,9 @@ class _BetterGrasp(ControlFunction):
 
         loc_timer_start = time.time_ns()
         logger.log("Starting 3D Instance Segmentation and Object Localization")
-        item_cloud, environment_cloud = get_mask_points(ITEM, config, vis_block=False)
+        item_cloud, environment_cloud = get_item_pcd(
+            ITEM, config, vis_block=True, min_mask_confidence=0.0
+        )
 
         lim_env_cloud = get_radius_env_cloud(item_cloud, environment_cloud, RADIUS)
         logger.log("Ending 3D Instance Segmentation and Object Localization")
@@ -150,7 +152,7 @@ class _BetterGrasp(ControlFunction):
             floor_height_thresh=0.1,
             n_best=20,
             body_height=0.3,
-            vis_block=False,
+            vis_block=True,
         )
         logger.log("Ending body planning.")
         body_planner_end = time.time_ns()
@@ -200,11 +202,13 @@ class _BetterGrasp(ControlFunction):
         ################################ ARM COMMANDS #################################
         ###############################################################################
 
-        grasp_pose_new = adapt_grasp(best_pose, grasp_pose)
+        grasp_pose_new = align_grasp_with_body(best_pose, grasp_pose)
         pose_adder = Pose3D((0, 0, -0.01))
         grasp_pose_new = grasp_pose_new @ pose_adder
         print(f"{grasp_pose_new.coordinates=}")
         print(f"{grasp_pose_new.rot_matrix=}")
+
+        time.sleep(10)
 
         arm_move_start = time.time_ns()
         logger.log("Starting arm movement.")

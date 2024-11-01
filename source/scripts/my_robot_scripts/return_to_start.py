@@ -48,7 +48,7 @@ class _MovementFunction(ControlFunction):
                 pose=pose,
                 frame_name=VISION_FRAME_NAME,
             )
-        frame_name = localize_from_images(config, vis_block=True)
+        frame_name = localize_from_images(config, vis_block=False)
         return frame_name
 
 

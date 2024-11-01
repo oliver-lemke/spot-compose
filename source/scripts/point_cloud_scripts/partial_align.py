@@ -279,7 +279,7 @@ def main() -> None:
     scan_fiducial = copy.deepcopy(scan_ground).transform(fiducial_tform_ground)
     mesh_fiducial = copy.deepcopy(mesh_ground).transform(fiducial_tform_ground)
     scan_vis = add_coordinate_system(
-        scan_fiducial, (0, 255, 0), np.asarray((0, 0, 0)), size=2
+        copy.deepcopy(scan_fiducial), (0, 255, 0), np.asarray((0, 0, 0)), size=2
     )
     o3d.visualization.draw_geometries([scan_vis])
 

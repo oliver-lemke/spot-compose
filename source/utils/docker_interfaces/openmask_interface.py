@@ -13,8 +13,11 @@ from urllib3.exceptions import ReadTimeoutError
 from utils import recursive_config
 from utils.docker_interfaces.docker_communication import _get_content
 from utils.recursive_config import Config
+from utils.importer import PointCloud
 
 MODEL, PREPROCESS = clip.load("ViT-L/14@336px", device="cpu")
+_MIN_MASK_CONFIDENCE_DEFAULT = 0.3
+_MIN_CLIP_SIMILARITY_DEFAULT = 0.23
 
 
 def zip_point_cloud(path: str) -> str:
@@ -43,7 +46,7 @@ def get_mask_clip_features() -> None:
     directory_path = os.path.join(str(directory_path), ending)
     zip_file = zip_point_cloud(directory_path)
 
-    num_queries = 50
+    num_queries = 120
     kwargs = {
         "name": ("str", ending),
         "overwrite": ("bool", True),
@@ -101,24 +104,51 @@ def get_mask_clip_features() -> None:
     np.save(class_compressed_path, classes)
 
 
-def get_mask_points(
-    item: str, config, idx: int = 0, vis_block: bool = False, comp: bool = True
-):
+def get_item_masks(
+    item: str,
+    config: Config,
+    min_mask_confidence: float = _MIN_MASK_CONFIDENCE_DEFAULT,
+    min_clip_similarity: float = _MIN_CLIP_SIMILARITY_DEFAULT,
+    comp: bool = True,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Returns the masks of the relevant items
+
+    Args:
+        item (str): the item to be searched for
+        config (Config): the configuration
+        min_mask_confidence (float, optional): minimum confidence in the Mask3D mask to be considered (filters low likelihood objects). Defaults to _MIN_MASK_CONFIDENCE_DEFAULT.
+        min_clip_similarity (float, optional): minimum similarity score between 3D object and item description to be considered. Defaults to _MIN_CLIP_SIMILARITY_DEFAULT.
+        comp (bool, optional): whether to use the unique masks. Defaults to True.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]: (cos_sims, masks, object_ids, mask_scores)
+        (1) cos_sims: the cosine similarity between the object and the item description (sorted)
+        (2) masks: the masks of the 3D objects
+        (3) object_ids: the ids of the objects
+        (4) mask_scores: Mask3D confidence score in that mask
+    """
     pcd_name = config["pre_scanned_graphs"]["high_res"]
     base_path = config.get_subpath("openmask_features")
     if comp:
         feat_path = os.path.join(base_path, pcd_name, "clip_features_comp.npy")
         mask_path = os.path.join(base_path, pcd_name, "scene_MASKS_comp.npy")
+        score_path = os.path.join(base_path, pcd_name, "scene_SCORES_comp.npy")
     else:
         feat_path = os.path.join(base_path, pcd_name, "clip_features.npy")
         mask_path = os.path.join(base_path, pcd_name, "scene_MASKS.npy")
-    pcd_path = os.path.join(
-        config.get_subpath("aligned_point_clouds"), pcd_name, "scene.ply"
-    )
+        score_path = os.path.join(base_path, pcd_name, "scene_SCORES.npy")
 
     features = np.load(feat_path)
     masks = np.load(mask_path)
+    mask_scores = np.load(score_path)
+    object_ids = np.arange(features.shape[0])
     item = item.lower()
+
+    pass_score_bool = mask_scores > min_mask_confidence
+    masks = masks[pass_score_bool]
+    mask_scores = mask_scores[pass_score_bool]
+    features = features[pass_score_bool]
+    object_ids = object_ids[pass_score_bool]
 
     text = clip.tokenize([item]).to("cpu")
 
@@ -126,20 +156,56 @@ def get_mask_points(
     with torch.no_grad():
         text_features = MODEL.encode_text(text)
 
-    cos_sim = torch.cosine_similarity(torch.Tensor(features), text_features, dim=1)
+    cos_sims = torch.cosine_similarity(torch.Tensor(features), text_features, dim=1)
+    detections_above_min_sim_score = cos_sims > min_clip_similarity
+    masks = masks[detections_above_min_sim_score]
+    cos_sims = cos_sims[detections_above_min_sim_score]
+    object_ids = object_ids[detections_above_min_sim_score]
+
+    return cos_sims, masks, object_ids, mask_scores
+
+
+def get_item_pcd(
+    item: str,
+    config,
+    idx: int = 0,
+    vis_block: bool = False,
+    comp: bool = True,
+    min_mask_confidence: float = _MIN_MASK_CONFIDENCE_DEFAULT,
+    min_clip_similarity: float = _MIN_CLIP_SIMILARITY_DEFAULT,
+) -> tuple[PointCloud, PointCloud]:
+    pcd_name = config["pre_scanned_graphs"]["high_res"]
+    pcd_path = os.path.join(
+        config.get_subpath("aligned_point_clouds"), pcd_name, "scene.ply"
+    )
+
+    cos_sim, masks, _, scores = get_item_masks(
+        item, config, min_mask_confidence, min_clip_similarity, comp
+    )
+    nr_detections = cos_sim.shape[0]
+    if idx + 1 > nr_detections:
+        print(f"Not enough detections for {nr_detections=} and {idx=}!")
+        return None, None
+
     values, indices = torch.topk(cos_sim, idx + 1)
     most_sim_feat_idx = indices[-1].item()
-    print(f"{most_sim_feat_idx=}", f"value={values[-1].item()}")
-    # idx = 1
+    print(f"{most_sim_feat_idx=}", f"value={values[-1].item()}", end=", ")
+    print(f"mask_confidence={scores[most_sim_feat_idx].item()}")
     mask = masks[most_sim_feat_idx].astype(bool)
 
     pcd = o3d.io.read_point_cloud(str(pcd_path))
+    print(mask.shape, pcd)
     pcd_in = pcd.select_by_index(np.where(mask)[0])
     pcd_out = pcd.select_by_index(np.where(~mask)[0])
 
+    points_in = np.asarray(pcd_in.points)
+    bbox_min = np.min(points_in, axis=0)
+    bbox_max = np.max(points_in, axis=0)
+    aabb = o3d.geometry.AxisAlignedBoundingBox(min_bound=bbox_min, max_bound=bbox_max)
+
     if vis_block:
         pcd_in.paint_uniform_color([1, 0, 1])
-        o3d.visualization.draw_geometries([pcd_in, pcd_out])
+        o3d.visualization.draw_geometries([pcd_in, pcd_out, aabb])
 
     return pcd_in, pcd_out
 
@@ -147,8 +213,8 @@ def get_mask_points(
 def compute_bounding_boxes(
     config,
     vis_block: bool = False,
-    min_score: bool = 0.5,
-) -> tuple[np.ndarray, np.ndarray]:
+    min_mask_confidence: bool = _MIN_MASK_CONFIDENCE_DEFAULT,
+) -> tuple[tuple[np.ndarray, np.ndarray], np.ndarray, np.ndarray]:
     pcd_name = config["pre_scanned_graphs"]["high_res"]
     base_path = config.get_subpath("openmask_features")
     feat_path = os.path.join(base_path, pcd_name, "clip_features_comp.npy")
@@ -162,12 +228,14 @@ def compute_bounding_boxes(
     features = np.load(feat_path)
     masks = np.load(mask_path)
     scores = np.load(score_path)
-    classes = np.load(class_path)
+    # classes = np.load(class_path)
+    object_ids = np.arange(features.shape[0])
 
-    pass_score_bool = scores > min_score
+    pass_score_bool = scores > min_mask_confidence
     masks = masks[pass_score_bool]
     scores = scores[pass_score_bool]
     features = features[pass_score_bool]
+    object_ids = object_ids[pass_score_bool]
 
     masks = masks.astype(bool)
     nr_objects = masks.shape[0]
@@ -199,7 +267,32 @@ def compute_bounding_boxes(
         # Optionally, visualize the bounding box
         o3d.visualization.draw_geometries([pcd, *aabbs])
 
-    return (bbox_mins, bbox_maxs), features
+    return (bbox_mins, bbox_maxs), features, object_ids
+
+
+def get_scene_dict(
+    config,
+    vis_block: bool = False,
+    min_mask_confidence: bool = _MIN_MASK_CONFIDENCE_DEFAULT,
+) -> dict:
+    (bbox_mins, bbox_maxs), _, object_ids = compute_bounding_boxes(
+        config, vis_block, min_mask_confidence
+    )
+    nr_bboxes = bbox_mins.shape[0]
+    objects_dict = {}
+    for idx in range(nr_bboxes):
+        object_id = object_ids[idx]
+        bbox_min, bbox_max = bbox_mins[idx], bbox_maxs[idx]
+        centroid = (bbox_min + bbox_max) / 2
+        extents = (bbox_max - bbox_min) / 2
+        current_object_dict = {
+            "description": "irrelevant",
+            "centroid": centroid.tolist(),
+            "extents": extents.tolist(),
+        }
+        objects_dict[f"object_{object_id}"] = current_object_dict
+    scene_dict = {"scene": objects_dict}
+    return scene_dict
 
 
 ########################################################################################
@@ -208,17 +301,26 @@ def compute_bounding_boxes(
 
 
 def visualize_query_masks():
-    item = "table"
+    item = "candle"
     config = Config()
-    for i in range(15):
+    for i in range(5):
         print(i, end=", ")
-        get_mask_points(item, config, idx=i, vis_block=True)
+        success = get_item_pcd(
+            item,
+            config,
+            idx=i,
+            vis_block=True,
+            min_mask_confidence=0.0,
+            min_clip_similarity=0.1,
+        )
+        if not success:
+            break
 
 
 def visualize_bounding_boxes():
     os.environ["DISPLAY"] = "localhost:11.0"
     config = Config()
-    compute_bounding_boxes(config, vis_block=True)
+    compute_bounding_boxes(config, vis_block=True, min_mask_confidence=0.3)
 
 
 if __name__ == "__main__":

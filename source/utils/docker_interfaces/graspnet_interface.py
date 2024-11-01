@@ -23,7 +23,7 @@ from utils.coordinates import (
 from utils.docker_interfaces.docker_communication import save_files, send_request
 from utils.files import prep_tmp_path
 from utils.importer import PointCloud
-from utils.docker_interfaces.openmask_interface import get_mask_points
+from utils.docker_interfaces.openmask_interface import get_item_pcd
 from utils.point_clouds import get_radius_env_cloud
 from utils.recursive_config import Config
 
@@ -358,15 +358,21 @@ def predict_partial_grasp(
 
 def _test_full_grasp() -> None:
     config = Config()
-    ITEM, INDEX = "green watering can", 0
+    ITEM, INDEX = "candle", 0
     RADIUS = 0.75
     RES = 16
     VIS_BLOCK = True
 
-    item_cloud, environment_cloud = get_mask_points(
-        ITEM, config, idx=INDEX, vis_block=True
+    item_cloud, environment_cloud = get_item_pcd(
+        ITEM,
+        config,
+        idx=INDEX,
+        vis_block=VIS_BLOCK,
+        min_mask_confidence=0.0,
     )
+
     if VIS_BLOCK:
+        print(item_cloud)
         o3d.visualization.draw_geometries([item_cloud])
     lim_env_cloud = get_radius_env_cloud(item_cloud, environment_cloud, RADIUS)
 
